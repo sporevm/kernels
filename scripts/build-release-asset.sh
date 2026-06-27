@@ -260,6 +260,7 @@ build_asset \
   "CPUSETS" \
   "PROC_PID_CPUSET" \
   "MEMCG" \
+  "PSI" \
   "SECCOMP" \
   "SECCOMP_FILTER" \
   "OVERLAY_FS" \
