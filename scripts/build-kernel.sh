@@ -1,0 +1,332 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
+KERNEL_PROFILE="${SPOREVM_KERNEL_PROFILE:-rootfs}"
+KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
+DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-ubuntu:22.04}"
+DOCKER_PLATFORM="${SPOREVM_KERNEL_DOCKER_PLATFORM:-linux/amd64}"
+ENABLE_DEVMEM="${SPOREVM_KERNEL_ENABLE_DEVMEM:-0}"
+BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-}"
+BUILD_VOLUME="${SPOREVM_KERNEL_BUILD_VOLUME:-sporevm-kernel}"
+DEFAULT_KERNEL_TARBALL_SHA256=""
+if [[ "${KERNEL_VERSION}" == "6.1.155" ]]; then
+  DEFAULT_KERNEL_TARBALL_SHA256="c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73"
+fi
+KERNEL_TARBALL_SHA256="${SPOREVM_KERNEL_TARBALL_SHA256:-${DEFAULT_KERNEL_TARBALL_SHA256}}"
+DEFAULT_CROSS_COMPILE=""
+if [[ "${KERNEL_ARCH}" == "arm64" && "${DOCKER_PLATFORM}" != "linux/arm64" ]]; then
+  DEFAULT_CROSS_COMPILE="aarch64-linux-gnu-"
+fi
+KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${DEFAULT_CROSS_COMPILE}}"
+
+case "${KERNEL_ARCH}" in
+  arm64) ;;
+  *)
+    echo "unsupported SPOREVM_KERNEL_ARCH: ${KERNEL_ARCH}" >&2
+    echo "only arm64 is currently supported" >&2
+    exit 1
+    ;;
+esac
+
+if [[ -z "${KERNEL_TARBALL_SHA256}" ]]; then
+  echo "missing SPOREVM_KERNEL_TARBALL_SHA256 for Linux ${KERNEL_VERSION}" >&2
+  exit 1
+fi
+
+case "${KERNEL_PROFILE}" in
+  initrd|rootfs|sporevm-run) ;;
+  *)
+    echo "unsupported SPOREVM_KERNEL_PROFILE: ${KERNEL_PROFILE}" >&2
+    echo "expected initrd, rootfs, or sporevm-run" >&2
+    exit 1
+    ;;
+esac
+
+case "${ENABLE_DEVMEM}" in
+  0|1) ;;
+  *)
+    echo "unsupported SPOREVM_KERNEL_ENABLE_DEVMEM: ${ENABLE_DEVMEM}" >&2
+    echo "expected 0 or 1" >&2
+    exit 1
+    ;;
+esac
+
+OUTPUT_PATH="${1:-${REPO_ROOT}/dist/sporevm-${KERNEL_PROFILE}-${KERNEL_ARCH}-kernel-${KERNEL_VERSION}-Image}"
+CONFIG_PATH="${OUTPUT_PATH}.config"
+mkdir -p "$(dirname "${OUTPUT_PATH}")"
+OUTPUT_DIR="$(cd "$(dirname "${OUTPUT_PATH}")" && pwd)"
+OUTPUT_BASENAME="$(basename "${OUTPUT_PATH}")"
+CONFIG_BASENAME="$(basename "${CONFIG_PATH}")"
+if [[ -n "${BUILD_DIR}" ]]; then
+  mkdir -p "${BUILD_DIR}"
+  BUILD_MOUNT="$(cd "${BUILD_DIR}" && pwd):/build"
+else
+  BUILD_MOUNT="${BUILD_VOLUME}:/build"
+fi
+
+docker run --rm \
+  --platform "${DOCKER_PLATFORM}" \
+  -e "KERNEL_VERSION=${KERNEL_VERSION}" \
+  -e "KERNEL_PROFILE=${KERNEL_PROFILE}" \
+  -e "KERNEL_ARCH=${KERNEL_ARCH}" \
+  -e "KERNEL_CROSS_COMPILE=${KERNEL_CROSS_COMPILE}" \
+  -e "KERNEL_TARBALL_SHA256=${KERNEL_TARBALL_SHA256}" \
+  -e "ENABLE_DEVMEM=${ENABLE_DEVMEM}" \
+  -e "OUTPUT_BASENAME=${OUTPUT_BASENAME}" \
+  -e "CONFIG_BASENAME=${CONFIG_BASENAME}" \
+  -v "${BUILD_MOUNT}" \
+  -v "${OUTPUT_DIR}:/out" \
+  "${DOCKER_IMAGE}" \
+  bash -lc '
+    set -euo pipefail
+
+    export DEBIAN_FRONTEND=noninteractive
+    packages=(
+      bc \
+      bison \
+      build-essential \
+      ca-certificates \
+      curl \
+      flex \
+      libelf-dev \
+      libssl-dev \
+      xz-utils
+    )
+    if [[ -n "${KERNEL_CROSS_COMPILE}" ]]; then
+      packages+=(gcc-aarch64-linux-gnu)
+    fi
+    apt-get update
+    apt-get install -y --no-install-recommends "${packages[@]}"
+
+    src="/build/linux-${KERNEL_VERSION}"
+    tarball="/build/linux-${KERNEL_VERSION}.tar.xz"
+    source_stamp="${src}.source.sha256"
+
+    download_kernel_tarball() {
+      rm -f "${tarball}.tmp"
+      curl -fsSL \
+        "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KERNEL_VERSION}.tar.xz" \
+        -o "${tarball}.tmp"
+      mv "${tarball}.tmp" "${tarball}"
+    }
+
+    verify_kernel_tarball() {
+      echo "${KERNEL_TARBALL_SHA256}  ${tarball}" | sha256sum -c -
+    }
+
+    if [[ ! -d "${src}" || ! -f "${source_stamp}" || "$(<"${source_stamp}")" != "${KERNEL_TARBALL_SHA256}" ]]; then
+      rm -rf "${src}" "${source_stamp}"
+      if [[ ! -f "${tarball}" ]]; then
+        download_kernel_tarball
+      fi
+      if ! verify_kernel_tarball; then
+        rm -f "${tarball}"
+        download_kernel_tarball
+        verify_kernel_tarball
+      fi
+      tar -C /build -xf "${tarball}"
+      printf "%s\n" "${KERNEL_TARBALL_SHA256}" > "${source_stamp}"
+    fi
+
+    out="/build/out-vz-${KERNEL_PROFILE}-pci-${KERNEL_VERSION}"
+    rm -rf "${out}"
+    mkdir -p "${out}"
+
+    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" tinyconfig
+    "${src}/scripts/config" --file "${out}/.config" \
+      -e 64BIT \
+      -e ARM64_4K_PAGES \
+      -e BINFMT_ELF \
+      -e TTY \
+      -e VT \
+      -e UNIX98_PTYS \
+      -e HVC_DRIVER \
+      -e VIRTIO \
+      -e VIRTIO_MENU \
+      -e VIRTIO_PCI \
+      -e VIRTIO_MMIO \
+      -e VIRTIO_PCI_LEGACY \
+      -e VIRTIO_CONSOLE \
+      -e VIRTIO_BALLOON \
+      -e MEMORY_BALLOON \
+      -e BALLOON_COMPACTION \
+      -e COMPACTION \
+      -e PAGE_REPORTING \
+      -e ARM_AMBA \
+      -e RTC_CLASS \
+      -e RTC_HCTOSYS \
+      -e RTC_INTF_DEV \
+      -e RTC_INTF_PROC \
+      -e RTC_INTF_SYSFS \
+      -e RTC_DRV_PL031 \
+      -e VSOCKETS \
+      -e VIRTIO_VSOCKETS \
+      -e NET \
+      -e INET \
+      -e PROC_FS \
+      -e SYSFS \
+      -e FUTEX \
+      -e EPOLL \
+      -e ADVISE_SYSCALLS \
+      -e ANON_INODES \
+      -e EVENTFD \
+      -e SIGNALFD \
+      -e TIMERFD \
+      -e PRINTK \
+      -e BUG \
+      -e DEVTMPFS \
+      -e TMPFS \
+      -e EMBEDDED \
+      -e EXPERT \
+      -e PCI \
+      -e PCI_HOST_GENERIC \
+      -e PCI_MSI \
+      -e PCI_MSI_IRQ_DOMAIN \
+      -e GENERIC_MSI_IRQ_DOMAIN \
+      -e CC_OPTIMIZE_FOR_PERFORMANCE \
+      -d CC_OPTIMIZE_FOR_SIZE \
+      -d MODULES \
+      -d DEBUG_INFO \
+      -d DEBUG_KERNEL \
+      -d KALLSYMS \
+      -d IKCONFIG \
+      -d IPV6 \
+      -d WIRELESS \
+      -d WLAN \
+      -d BT \
+      -d BLOCK \
+      -d SCSI \
+      -d MD \
+      -d INPUT \
+      -d HID \
+      -d USB_SUPPORT \
+      -d CGROUPS \
+      -d NAMESPACES \
+      -d AUDIT \
+      -d SECURITY \
+      -d BPF_SYSCALL \
+      -d ZSWAP
+
+    if [[ "${KERNEL_PROFILE}" = "initrd" || "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e BLK_DEV_INITRD \
+        -e RD_GZIP \
+        -e CMDLINE_BOOL \
+        --set-str CMDLINE "rdinit=/init"
+    fi
+
+    if [[ "${ENABLE_DEVMEM}" = "1" ]]; then
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e DEVMEM \
+        -d STRICT_DEVMEM \
+        -d IO_STRICT_DEVMEM
+    else
+      "${src}/scripts/config" --file "${out}/.config" \
+        -d DEVMEM \
+        -d STRICT_DEVMEM \
+        -d IO_STRICT_DEVMEM
+    fi
+
+    if [[ "${KERNEL_PROFILE}" = "rootfs" || "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e BLOCK \
+        -e BLK_DEV \
+        -e VIRTIO_BLK \
+        -e EXT4_FS \
+        -e EXT4_USE_FOR_EXT2 \
+        -e JBD2 \
+        -e CRC16 \
+        -e CRYPTO \
+        -e CRYPTO_CRC32C \
+        -e NETDEVICES \
+        -e VIRTIO_NET \
+        -e PACKET \
+        -e UNIX \
+        -e DEVTMPFS_MOUNT
+    fi
+
+    if [[ "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e MULTIUSER \
+        -e SYSVIPC \
+        -e POSIX_TIMERS \
+        -e BINFMT_SCRIPT \
+        -e HW_RANDOM \
+        -e HW_RANDOM_VIRTIO \
+        -e FILE_LOCKING \
+        -e SHMEM \
+        -e TMPFS \
+        -e FSNOTIFY \
+        -e INOTIFY_USER \
+        -e FHANDLE \
+        -e POSIX_MQUEUE \
+        -e KEYS \
+        -e NAMESPACES \
+        -e UTS_NS \
+        -e IPC_NS \
+        -e PID_NS \
+        -e NET_NS \
+        -e USER_NS \
+        -e CGROUPS \
+        -e BPF_SYSCALL \
+        -e CGROUP_BPF \
+        -e CGROUP_SCHED \
+        -e FAIR_GROUP_SCHED \
+        -e CFS_BANDWIDTH \
+        -e CGROUP_CPUACCT \
+        -e CGROUP_DEVICE \
+        -e CGROUP_FREEZER \
+        -e CGROUP_PIDS \
+        -e CPUSETS \
+        -e PROC_PID_CPUSET \
+        -e MEMCG \
+        -e SECCOMP \
+        -e SECCOMP_FILTER \
+        -e OVERLAY_FS \
+        -e TUN \
+        -e VETH \
+        -e MACVLAN \
+        -e IPVLAN \
+        -e VXLAN \
+        -e BRIDGE \
+        -e BRIDGE_NETFILTER \
+        -e NETFILTER \
+        -e NETFILTER_ADVANCED \
+        -e NF_CONNTRACK \
+        -e NF_NAT \
+        -e NETFILTER_XTABLES \
+        -e NETFILTER_XT_TARGET_CHECKSUM \
+        -e NETFILTER_XT_TARGET_MASQUERADE \
+        -e NETFILTER_XT_TARGET_REDIRECT \
+        -e NETFILTER_XT_MATCH_ADDRTYPE \
+        -e NETFILTER_XT_MATCH_CONNTRACK \
+        -e NF_TABLES \
+        -e NF_TABLES_IPV4 \
+        -e NFT_COMPAT \
+        -e NFT_CT \
+        -e NFT_MASQ \
+        -e NFT_NAT \
+        -e NFT_REJECT \
+        -e NFT_REJECT_IPV4 \
+        -e IP_NF_IPTABLES \
+        -e IP_NF_FILTER \
+        -e IP_NF_TARGET_REJECT \
+        -e IP_NF_NAT \
+        -e IP_NF_TARGET_MASQUERADE \
+        -e IP_NF_TARGET_REDIRECT \
+        -e IP_NF_MANGLE \
+        -e IP_NF_RAW
+    fi
+
+    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" olddefconfig
+    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" -j"$(nproc)" Image
+
+    cp "${out}/arch/${KERNEL_ARCH}/boot/Image" "/out/${OUTPUT_BASENAME}"
+    cp "${out}/.config" "/out/${CONFIG_BASENAME}"
+  '
+
+printf '%s\n' "${OUTPUT_PATH}"

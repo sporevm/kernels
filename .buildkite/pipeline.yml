@@ -1,0 +1,36 @@
+steps:
+  - label: ":penguin: Build SporeVM kernel"
+    key: build-sporevm
+    command: "scripts/ci-build-kernel-asset.sh sporevm"
+    artifact_paths: "dist/kernels/*"
+    timeout_in_minutes: 45
+    cache:
+      paths:
+        - ".kernel-cache/sporevm/"
+      key: "v1-sporevm-kernel-6.1.155"
+    agents:
+      queue: hosted
+
+  - label: ":penguin: Build SporeVM run kernel"
+    key: build-sporevm-run
+    command: "scripts/ci-build-kernel-asset.sh sporevm-run"
+    artifact_paths: "dist/kernels/*"
+    timeout_in_minutes: 45
+    cache:
+      paths:
+        - ".kernel-cache/sporevm-run/"
+      key: "v1-sporevm-run-kernel-6.1.155"
+    agents:
+      queue: hosted
+
+  - wait
+
+  - label: ":rocket: Publish release"
+    command: |
+      if [[ -z "$${BUILDKITE_TAG:-}" ]]; then
+        echo "Skipping release publish because this is not a tagged build"
+        exit 0
+      fi
+      scripts/ci-publish-release.sh
+    agents:
+      queue: hosted
