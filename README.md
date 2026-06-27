@@ -10,23 +10,16 @@ This repository publishes:
 - `sporevm-arm64-linux-<version>-Image.config`
 - `sporevm-arm64-linux-<version>-Image.sha256`
 - `sporevm-arm64-linux-<version>.manifest.json`
-- `sporevm-run-arm64-linux-<version>-Image`
-- `sporevm-run-arm64-linux-<version>-Image.config`
-- `sporevm-run-arm64-linux-<version>-Image.sha256`
-- `sporevm-run-arm64-linux-<version>.manifest.json`
 
-The legacy `sporevm` kernel enables `/dev/mem` for the diskless fork smoke
-helper. The `sporevm-run` kernel disables `/dev/mem` and includes the initrd,
-rootfs, Docker, cgroup, namespace, networking, and filesystem support needed by
-`spore run`.
+The kernel disables `/dev/mem` and includes the initrd, rootfs, Docker, cgroup,
+namespace, networking, and filesystem support needed by `spore run`.
 
 ## Build
 
 Build one asset locally:
 
 ```sh
-scripts/build-release-asset.sh sporevm dist/kernels
-scripts/build-release-asset.sh sporevm-run dist/kernels
+scripts/build-release-asset.sh dist/kernels
 ```
 
 Useful environment variables:
@@ -43,6 +36,5 @@ Useful environment variables:
 
 ## CI
 
-Buildkite builds `sporevm` and `sporevm-run` in parallel on hosted agents. Each
-step uploads its own release assets. Tagged builds then publish those assets and
-`dist/kernels.tar.gz` to the matching GitHub Release.
+Buildkite builds the kernel on hosted agents. Tagged builds then publish the
+assets and `dist/kernels.tar.gz` to the matching GitHub Release.

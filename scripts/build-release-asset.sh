@@ -187,8 +187,7 @@ PY
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-TARGET="${1:-}"
-OUTPUT_DIR="${2:-${REPO_ROOT}/dist/kernels}"
+OUTPUT_DIR="${1:-${REPO_ROOT}/dist/kernels}"
 KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
 DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-ubuntu:22.04}"
@@ -202,11 +201,6 @@ if [[ "${KERNEL_ARCH}" == "arm64" && "${DOCKER_PLATFORM}" != "linux/arm64" ]]; t
   DEFAULT_CROSS_COMPILE="aarch64-linux-gnu-"
 fi
 KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${DEFAULT_CROSS_COMPILE}}"
-
-case "${TARGET}" in
-  sporevm|sporevm-run) ;;
-  *) die "usage: $0 sporevm|sporevm-run [output-dir]" ;;
-esac
 
 case "${KERNEL_ARCH}" in
   arm64) ;;
@@ -223,95 +217,82 @@ SOURCE_COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || printf 'unk
 SOURCE_REPOSITORY="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-buildkite/sporevm-kernels}"
 RELEASE_TAG="${SPOREVM_KERNELS_RELEASE_TAG:-${BUILDKITE_TAG:-}}"
 
-case "${TARGET}" in
-  sporevm)
-    build_asset \
-      "fork-smoke" \
-      "${SPOREVM_KERNEL_ASSET_BASE:-sporevm-${KERNEL_ARCH}-linux-${KERNEL_VERSION}}" \
-      "build-sporevm-kernel.sh" \
-      "sporevm-initrd" \
-      "1" \
-      "0"
-    ;;
-  sporevm-run)
-    build_asset \
-      "run" \
-      "${SPOREVM_RUN_KERNEL_ASSET_BASE:-sporevm-run-${KERNEL_ARCH}-linux-${KERNEL_VERSION}}" \
-      "build-sporevm-run-kernel.sh" \
-      "sporevm-initrd+rootfs" \
-      "0" \
-      "" \
-      "1" \
-      "1" \
-      "1" \
-      "1" \
-      "1" \
-      "1" \
-      "1" \
-      "HW_RANDOM" \
-      "HW_RANDOM_VIRTIO" \
-      "FILE_LOCKING" \
-      "SHMEM" \
-      "TMPFS" \
-      "FSNOTIFY" \
-      "INOTIFY_USER" \
-      "FHANDLE" \
-      "POSIX_MQUEUE" \
-      "KEYS" \
-      "NAMESPACES" \
-      "UTS_NS" \
-      "IPC_NS" \
-      "PID_NS" \
-      "NET_NS" \
-      "USER_NS" \
-      "CGROUPS" \
-      "BPF_SYSCALL" \
-      "CGROUP_BPF" \
-      "CGROUP_SCHED" \
-      "FAIR_GROUP_SCHED" \
-      "CFS_BANDWIDTH" \
-      "CGROUP_CPUACCT" \
-      "CGROUP_DEVICE" \
-      "CGROUP_FREEZER" \
-      "CGROUP_PIDS" \
-      "CPUSETS" \
-      "PROC_PID_CPUSET" \
-      "MEMCG" \
-      "SECCOMP" \
-      "SECCOMP_FILTER" \
-      "OVERLAY_FS" \
-      "TUN" \
-      "VETH" \
-      "MACVLAN" \
-      "IPVLAN" \
-      "VXLAN" \
-      "BRIDGE" \
-      "BRIDGE_NETFILTER" \
-      "NETFILTER" \
-      "NETFILTER_ADVANCED" \
-      "NF_CONNTRACK" \
-      "NF_NAT" \
-      "NETFILTER_XTABLES" \
-      "NETFILTER_XT_TARGET_CHECKSUM" \
-      "NETFILTER_XT_TARGET_MASQUERADE" \
-      "NETFILTER_XT_TARGET_REDIRECT" \
-      "NETFILTER_XT_MATCH_ADDRTYPE" \
-      "NETFILTER_XT_MATCH_CONNTRACK" \
-      "NF_TABLES" \
-      "NF_TABLES_IPV4" \
-      "NFT_COMPAT" \
-      "NFT_CT" \
-      "NFT_MASQ" \
-      "NFT_NAT" \
-      "NFT_REJECT" \
-      "NFT_REJECT_IPV4" \
-      "IP_NF_IPTABLES" \
-      "IP_NF_FILTER" \
-      "IP_NF_TARGET_REJECT" \
-      "IP_NF_NAT" \
-      "IP_NF_TARGET_MASQUERADE" \
-      "IP_NF_TARGET_REDIRECT" \
-      "IP_NF_MANGLE" \
-      "IP_NF_RAW"
-    ;;
-esac
+build_asset \
+  "run" \
+  "${SPOREVM_KERNEL_ASSET_BASE:-sporevm-${KERNEL_ARCH}-linux-${KERNEL_VERSION}}" \
+  "build-sporevm-kernel.sh" \
+  "sporevm-initrd+rootfs" \
+  "0" \
+  "" \
+  "1" \
+  "1" \
+  "1" \
+  "1" \
+  "1" \
+  "1" \
+  "1" \
+  "HW_RANDOM" \
+  "HW_RANDOM_VIRTIO" \
+  "FILE_LOCKING" \
+  "SHMEM" \
+  "TMPFS" \
+  "FSNOTIFY" \
+  "INOTIFY_USER" \
+  "FHANDLE" \
+  "POSIX_MQUEUE" \
+  "KEYS" \
+  "NAMESPACES" \
+  "UTS_NS" \
+  "IPC_NS" \
+  "PID_NS" \
+  "NET_NS" \
+  "USER_NS" \
+  "CGROUPS" \
+  "BPF_SYSCALL" \
+  "CGROUP_BPF" \
+  "CGROUP_SCHED" \
+  "FAIR_GROUP_SCHED" \
+  "CFS_BANDWIDTH" \
+  "CGROUP_CPUACCT" \
+  "CGROUP_DEVICE" \
+  "CGROUP_FREEZER" \
+  "CGROUP_PIDS" \
+  "CPUSETS" \
+  "PROC_PID_CPUSET" \
+  "MEMCG" \
+  "SECCOMP" \
+  "SECCOMP_FILTER" \
+  "OVERLAY_FS" \
+  "TUN" \
+  "VETH" \
+  "MACVLAN" \
+  "IPVLAN" \
+  "VXLAN" \
+  "BRIDGE" \
+  "BRIDGE_NETFILTER" \
+  "NETFILTER" \
+  "NETFILTER_ADVANCED" \
+  "NF_CONNTRACK" \
+  "NF_NAT" \
+  "NETFILTER_XTABLES" \
+  "NETFILTER_XT_TARGET_CHECKSUM" \
+  "NETFILTER_XT_TARGET_MASQUERADE" \
+  "NETFILTER_XT_TARGET_REDIRECT" \
+  "NETFILTER_XT_MATCH_ADDRTYPE" \
+  "NETFILTER_XT_MATCH_CONNTRACK" \
+  "NF_TABLES" \
+  "NF_TABLES_IPV4" \
+  "NFT_COMPAT" \
+  "NFT_CT" \
+  "NFT_MASQ" \
+  "NFT_NAT" \
+  "NFT_REJECT" \
+  "NFT_REJECT_IPV4" \
+  "IP_NF_IPTABLES" \
+  "IP_NF_FILTER" \
+  "IP_NF_TARGET_REJECT" \
+  "IP_NF_NAT" \
+  "IP_NF_TARGET_MASQUERADE" \
+  "IP_NF_TARGET_REDIRECT" \
+  "IP_NF_MANGLE" \
+  "IP_NF_RAW"

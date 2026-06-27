@@ -13,13 +13,7 @@ require_command() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-TARGET="${1:-}"
 KERNEL_RELEASE_DIR="${REPO_ROOT}/dist/kernels"
-
-case "${TARGET}" in
-  sporevm|sporevm-run) ;;
-  *) die "usage: $0 sporevm|sporevm-run" ;;
-esac
 
 require_command docker
 require_command git
@@ -29,7 +23,7 @@ cd "${REPO_ROOT}"
 rm -rf "${KERNEL_RELEASE_DIR}"
 mkdir -p "${KERNEL_RELEASE_DIR}"
 
-export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${REPO_ROOT}/.kernel-cache/${TARGET}}"
+export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${REPO_ROOT}/.kernel-cache/sporevm}"
 
-echo "--- :penguin: Build ${TARGET} kernel release assets"
-"${SCRIPT_DIR}/build-release-asset.sh" "${TARGET}" "${KERNEL_RELEASE_DIR}"
+echo "--- :penguin: Build SporeVM kernel release assets"
+"${SCRIPT_DIR}/build-release-asset.sh" "${KERNEL_RELEASE_DIR}"
