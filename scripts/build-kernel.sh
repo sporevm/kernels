@@ -237,6 +237,7 @@ docker run --rm \
         -e BLK_DEV \
         -e VIRTIO_BLK \
         -e EXT4_FS \
+        -e EXT4_FS_SECURITY \
         -e EXT4_USE_FOR_EXT2 \
         -e JBD2 \
         -e CRC16 \

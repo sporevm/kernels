@@ -93,6 +93,7 @@ build_asset() {
   require_config_bool "${config_path}" "BLK_DEV_INITRD" "${kernel_config_initrd}"
   require_config_bool "${config_path}" "VIRTIO_BLK" "${kernel_config_virtio_blk}"
   require_config_bool "${config_path}" "EXT4_FS" "${kernel_config_ext4}"
+  require_config_bool "${config_path}" "SECURITY" "0"
   require_config_bool "${config_path}" "MULTIUSER" "${kernel_config_multiuser}"
   require_config_bool "${config_path}" "SYSVIPC" "${kernel_config_sysvipc}"
   require_config_bool "${config_path}" "POSIX_TIMERS" "${kernel_config_posix_timers}"
@@ -231,6 +232,7 @@ build_asset \
   "1" \
   "1" \
   "1" \
+  "EXT4_FS_SECURITY" \
   "HW_RANDOM" \
   "HW_RANDOM_VIRTIO" \
   "FILE_LOCKING" \
