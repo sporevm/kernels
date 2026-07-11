@@ -238,6 +238,7 @@ build_asset \
   "FILE_LOCKING" \
   "SHMEM" \
   "TMPFS" \
+  "TMPFS_XATTR" \
   "FSNOTIFY" \
   "INOTIFY_USER" \
   "FHANDLE" \

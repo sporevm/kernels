@@ -261,6 +261,7 @@ docker run --rm \
         -e FILE_LOCKING \
         -e SHMEM \
         -e TMPFS \
+        -e TMPFS_XATTR \
         -e FSNOTIFY \
         -e INOTIFY_USER \
         -e FHANDLE \
