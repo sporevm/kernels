@@ -30,6 +30,9 @@ resolve_github_token() {
   if [[ -z "$(normalize_secret_value "${token}")" ]]; then
     token="$(fetch_secret_optional SPOREVM_GITHUB_RELEASE_TOKEN)"
   fi
+  if [[ -z "$(normalize_secret_value "${token}")" ]]; then
+    token="$(fetch_secret_optional SPOREVM_GITHUB_TOKEN)"
+  fi
 
   normalize_secret_value "${token}"
 }
@@ -210,7 +213,7 @@ git fetch --tags origin
 
 GITHUB_TOKEN="$(resolve_github_token)"
 export GITHUB_TOKEN
-[[ -n "${GITHUB_TOKEN}" ]] || die "GITHUB_TOKEN or SPOREVM_KERNELS_GITHUB_RELEASE_TOKEN is required for release publishing"
+[[ -n "${GITHUB_TOKEN}" ]] || die "a SporeVM GitHub release token is required for release publishing"
 
 echo "--- :package: Download kernel release artifacts"
 download_kernel_release_artifacts
