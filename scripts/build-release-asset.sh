@@ -24,6 +24,21 @@ sha256_file() {
   die "sha256 tool not found (need sha256sum or shasum)"
 }
 
+resolve_source_commit() {
+  local repo_root="$1"
+  local commit status
+
+  commit="$(git -C "${repo_root}" rev-parse --verify 'HEAD^{commit}' 2>/dev/null)" ||
+    die "could not determine the source commit for ${repo_root}"
+  [[ -n "${commit}" ]] || die "could not determine the source commit for ${repo_root}"
+
+  status="$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" ||
+    die "could not inspect the source worktree at ${repo_root}"
+  [[ -z "${status}" ]] || die "source worktree is dirty; commit or stash changes before building release assets"
+
+  printf '%s\n' "${commit}"
+}
+
 require_config_bool() {
   local config_path="$1"
   local symbol="$2"
@@ -48,6 +63,15 @@ require_config_bool() {
   esac
 }
 
+require_config_disabled() {
+  local config_path="$1"
+  local symbol="$2"
+
+  if grep -Eq "^CONFIG_${symbol}=(y|m)$" "${config_path}"; then
+    die "${config_path} unexpectedly enables CONFIG_${symbol}"
+  fi
+}
+
 build_asset() {
   local purpose="$1"
   local asset_base="$2"
@@ -69,7 +93,7 @@ build_asset() {
     required_enabled_config_symbols=("${@:14}")
   fi
 
-  image_name="${asset_base}-Image"
+  image_name="${asset_base}-${KERNEL_IMAGE_SUFFIX}"
   image_path="${OUTPUT_DIR}/${image_name}"
   config_path="${image_path}.config"
   sha256_path="${image_path}.sha256"
@@ -90,6 +114,7 @@ build_asset() {
 
   require_config_bool "${config_path}" "DEVMEM" "${kernel_config_devmem}"
   require_config_bool "${config_path}" "STRICT_DEVMEM" "${kernel_config_strict_devmem}"
+  require_config_bool "${config_path}" "IO_STRICT_DEVMEM" "${KERNEL_CONFIG_IO_STRICT_DEVMEM}"
   require_config_bool "${config_path}" "BLK_DEV_INITRD" "${kernel_config_initrd}"
   require_config_bool "${config_path}" "VIRTIO_BLK" "${kernel_config_virtio_blk}"
   require_config_bool "${config_path}" "EXT4_FS" "${kernel_config_ext4}"
@@ -101,6 +126,16 @@ build_asset() {
   for symbol in "${required_enabled_config_symbols[@]}"; do
     require_config_bool "${config_path}" "${symbol}" "1"
   done
+  if ((${#ARCH_REQUIRED_ENABLED_CONFIG_SYMBOLS[@]} > 0)); then
+    for symbol in "${ARCH_REQUIRED_ENABLED_CONFIG_SYMBOLS[@]}"; do
+      require_config_bool "${config_path}" "${symbol}" "1"
+    done
+  fi
+  if ((${#ARCH_REQUIRED_DISABLED_CONFIG_SYMBOLS[@]} > 0)); then
+    for symbol in "${ARCH_REQUIRED_DISABLED_CONFIG_SYMBOLS[@]}"; do
+      require_config_disabled "${config_path}" "${symbol}"
+    done
+  fi
 
   kernel_sha256="$(sha256_file "${image_path}")"
   printf '%s  %s\n' "${kernel_sha256}" "${image_name}" > "${sha256_path}"
@@ -113,6 +148,7 @@ build_asset() {
   KERNEL_CONFIG_BASE="${kernel_config_base}" \
   KERNEL_CONFIG_DEVMEM="${kernel_config_devmem}" \
   KERNEL_CONFIG_STRICT_DEVMEM="${kernel_config_strict_devmem}" \
+  KERNEL_CONFIG_IO_STRICT_DEVMEM="${KERNEL_CONFIG_IO_STRICT_DEVMEM}" \
   KERNEL_CONFIG_INITRD="${kernel_config_initrd}" \
   KERNEL_CONFIG_VIRTIO_BLK="${kernel_config_virtio_blk}" \
   KERNEL_CONFIG_EXT4="${kernel_config_ext4}" \
@@ -137,6 +173,7 @@ kernel_config = {"base": os.environ["KERNEL_CONFIG_BASE"]}
 for key, env_name in (
     ("devmem", "KERNEL_CONFIG_DEVMEM"),
     ("strict_devmem", "KERNEL_CONFIG_STRICT_DEVMEM"),
+    ("io_strict_devmem", "KERNEL_CONFIG_IO_STRICT_DEVMEM"),
     ("initrd", "KERNEL_CONFIG_INITRD"),
     ("virtio_blk", "KERNEL_CONFIG_VIRTIO_BLK"),
     ("ext4", "KERNEL_CONFIG_EXT4"),
@@ -188,6 +225,9 @@ PY
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/kernel-architecture.sh
+source "${SCRIPT_DIR}/kernel-architecture.sh"
+
 OUTPUT_DIR="${1:-${REPO_ROOT}/dist/kernels}"
 KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
@@ -197,16 +237,44 @@ KERNEL_TARBALL_SHA256="${SPOREVM_KERNEL_TARBALL_SHA256:-}"
 if [[ -z "${KERNEL_TARBALL_SHA256}" && "${KERNEL_VERSION}" == "6.1.155" ]]; then
   KERNEL_TARBALL_SHA256="c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73"
 fi
-DEFAULT_CROSS_COMPILE=""
-if [[ "${KERNEL_ARCH}" == "arm64" && "${DOCKER_PLATFORM}" != "linux/arm64" ]]; then
-  DEFAULT_CROSS_COMPILE="aarch64-linux-gnu-"
-fi
-KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${DEFAULT_CROSS_COMPILE}}"
+resolve_kernel_architecture "${KERNEL_ARCH}" "${DOCKER_PLATFORM}" || die "unsupported release kernel arch: ${KERNEL_ARCH}"
+KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${KERNEL_DEFAULT_CROSS_COMPILE}}"
+resolve_kernel_cross_package "${KERNEL_ARCH}" "${KERNEL_CROSS_COMPILE}" || die "unsupported cross compiler for ${KERNEL_ARCH}"
 
-case "${KERNEL_ARCH}" in
-  arm64) ;;
-  *) die "release kernel arch must be arm64, got ${KERNEL_ARCH}" ;;
-esac
+KERNEL_CONFIG_DEVMEM="0"
+KERNEL_CONFIG_STRICT_DEVMEM=""
+KERNEL_CONFIG_IO_STRICT_DEVMEM=""
+ARCH_REQUIRED_ENABLED_CONFIG_SYMBOLS=()
+ARCH_REQUIRED_DISABLED_CONFIG_SYMBOLS=()
+if [[ "${KERNEL_ARCH}" == "x86_64" ]]; then
+  KERNEL_CONFIG_DEVMEM="1"
+  KERNEL_CONFIG_STRICT_DEVMEM="1"
+  KERNEL_CONFIG_IO_STRICT_DEVMEM="0"
+  ARCH_REQUIRED_ENABLED_CONFIG_SYMBOLS=(
+    X86_64
+    SMP
+    X86_LOCAL_APIC
+    X86_IO_APIC
+    X86_MPPARSE
+    HYPERVISOR_GUEST
+    PARAVIRT
+    PARAVIRT_CLOCK
+    KVM_GUEST
+    RELOCATABLE
+    VIRTIO_MMIO_CMDLINE_DEVICES
+  )
+  ARCH_REQUIRED_DISABLED_CONFIG_SYMBOLS=(
+    ACPI
+    EFI
+    PCI
+    VIRTIO_PCI
+    RTC_CLASS
+    SERIAL_8250
+    KEYBOARD_ATKBD
+    MOUSE_PS2
+    SERIO_I8042
+  )
+fi
 
 require_command docker
 require_command git
@@ -214,8 +282,8 @@ require_command python3
 
 mkdir -p "${OUTPUT_DIR}"
 
-SOURCE_COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD 2>/dev/null || printf 'unknown')"
-SOURCE_REPOSITORY="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-buildkite/sporevm-kernels}"
+SOURCE_COMMIT="$(resolve_source_commit "${REPO_ROOT}")"
+SOURCE_REPOSITORY="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-sporevm/kernels}"
 RELEASE_TAG="${SPOREVM_KERNELS_RELEASE_TAG:-${BUILDKITE_TAG:-}}"
 
 build_asset \
@@ -223,8 +291,8 @@ build_asset \
   "${SPOREVM_KERNEL_ASSET_BASE:-sporevm-${KERNEL_ARCH}-linux-${KERNEL_VERSION}}" \
   "build-sporevm-kernel.sh" \
   "sporevm-initrd+rootfs" \
-  "0" \
-  "" \
+  "${KERNEL_CONFIG_DEVMEM}" \
+  "${KERNEL_CONFIG_STRICT_DEVMEM}" \
   "1" \
   "1" \
   "1" \
@@ -232,6 +300,13 @@ build_asset \
   "1" \
   "1" \
   "1" \
+  "HVC_DRIVER" \
+  "VIRTIO" \
+  "VIRTIO_MMIO" \
+  "VIRTIO_CONSOLE" \
+  "VIRTIO_NET" \
+  "VSOCKETS" \
+  "VIRTIO_VSOCKETS" \
   "EXT4_FS_SECURITY" \
   "HW_RANDOM" \
   "HW_RANDOM_VIRTIO" \
@@ -303,6 +378,8 @@ build_asset \
   "MEMORY_HOTPLUG" \
   "MEMORY_HOTPLUG_DEFAULT_ONLINE" \
   "MEMORY_HOTREMOVE" \
+  "MIGRATION" \
   "CONTIG_ALLOC" \
   "EXCLUSIVE_SYSTEM_RAM" \
+  "SPARSEMEM_VMEMMAP" \
   "VIRTIO_MEM"

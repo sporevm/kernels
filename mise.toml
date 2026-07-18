@@ -10,9 +10,13 @@ run = "shellcheck -x scripts/*.sh"
 description = "Check shell script syntax"
 run = "bash -n scripts/*.sh"
 
+[tasks.test]
+description = "Run focused script tests"
+run = "scripts/test-kernel-architecture.sh"
+
 [tasks.check]
 description = "Run local checks"
-depends = ["lint", "syntax"]
+depends = ["lint", "syntax", "test"]
 run = "true"
 
 [tasks.release]

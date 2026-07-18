@@ -196,7 +196,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${REPO_ROOT}/dist"
 KERNEL_RELEASE_DIR="${DIST_DIR}/kernels"
 ARCHIVE_PATH="${DIST_DIR}/kernels.tar.gz"
-GITHUB_REPOSITORY_NAME="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-buildkite/sporevm-kernels}"
+GITHUB_REPOSITORY_NAME="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-sporevm/kernels}"
 GITHUB_API_BASE="https://api.github.com/repos/${GITHUB_REPOSITORY_NAME}"
 declare -a downloaded_assets=()
 

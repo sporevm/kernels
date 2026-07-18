@@ -14,6 +14,19 @@ require_command() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 KERNEL_RELEASE_DIR="${REPO_ROOT}/dist/kernels"
+KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
+
+case "${KERNEL_ARCH}" in
+  arm64)
+    DEFAULT_BUILD_DIR="${REPO_ROOT}/.kernel-cache/sporevm"
+    ;;
+  x86_64)
+    DEFAULT_BUILD_DIR="${REPO_ROOT}/.kernel-cache/sporevm-x86_64"
+    ;;
+  *)
+    die "unsupported SPOREVM_KERNEL_ARCH: ${KERNEL_ARCH}"
+    ;;
+esac
 
 require_command docker
 require_command git
@@ -23,7 +36,7 @@ cd "${REPO_ROOT}"
 rm -rf "${KERNEL_RELEASE_DIR}"
 mkdir -p "${KERNEL_RELEASE_DIR}"
 
-export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${REPO_ROOT}/.kernel-cache/sporevm}"
+export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${DEFAULT_BUILD_DIR}}"
 
-echo "--- :penguin: Build SporeVM kernel release assets"
+echo "--- :penguin: Build SporeVM ${KERNEL_ARCH} kernel release assets"
 "${SCRIPT_DIR}/build-release-asset.sh" "${KERNEL_RELEASE_DIR}"
