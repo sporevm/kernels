@@ -4,33 +4,30 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# shellcheck source=scripts/kernel-architecture.sh
+source "${SCRIPT_DIR}/kernel-architecture.sh"
+
 KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
 KERNEL_PROFILE="${SPOREVM_KERNEL_PROFILE:-rootfs}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
-DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-ubuntu:22.04}"
+DEFAULT_DOCKER_IMAGE="sporevm-kernel-builder:ubuntu-22.04"
+DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_PLATFORM="${SPOREVM_KERNEL_DOCKER_PLATFORM:-linux/amd64}"
 ENABLE_DEVMEM="${SPOREVM_KERNEL_ENABLE_DEVMEM:-0}"
 BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-}"
 BUILD_VOLUME="${SPOREVM_KERNEL_BUILD_VOLUME:-sporevm-kernel}"
+KBUILD_BUILD_USER="${SPOREVM_KERNEL_BUILD_USER:-root}"
+KBUILD_BUILD_HOST="${SPOREVM_KERNEL_BUILD_HOST:-906884a1e5be}"
+KBUILD_BUILD_TIMESTAMP="${SPOREVM_KERNEL_BUILD_TIMESTAMP:-Sat Jul 18 04:00:42 UTC 2026}"
+KBUILD_BUILD_VERSION="${SPOREVM_KERNEL_BUILD_VERSION:-1}"
 DEFAULT_KERNEL_TARBALL_SHA256=""
 if [[ "${KERNEL_VERSION}" == "6.1.155" ]]; then
   DEFAULT_KERNEL_TARBALL_SHA256="c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73"
 fi
 KERNEL_TARBALL_SHA256="${SPOREVM_KERNEL_TARBALL_SHA256:-${DEFAULT_KERNEL_TARBALL_SHA256}}"
-DEFAULT_CROSS_COMPILE=""
-if [[ "${KERNEL_ARCH}" == "arm64" && "${DOCKER_PLATFORM}" != "linux/arm64" ]]; then
-  DEFAULT_CROSS_COMPILE="aarch64-linux-gnu-"
-fi
-KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${DEFAULT_CROSS_COMPILE}}"
-
-case "${KERNEL_ARCH}" in
-  arm64) ;;
-  *)
-    echo "unsupported SPOREVM_KERNEL_ARCH: ${KERNEL_ARCH}" >&2
-    echo "only arm64 is currently supported" >&2
-    exit 1
-    ;;
-esac
+resolve_kernel_architecture "${KERNEL_ARCH}" "${DOCKER_PLATFORM}"
+KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${KERNEL_DEFAULT_CROSS_COMPILE}}"
+validate_kernel_cross_compile "${KERNEL_ARCH}" "${KERNEL_CROSS_COMPILE}"
 
 if [[ -z "${KERNEL_TARBALL_SHA256}" ]]; then
   echo "missing SPOREVM_KERNEL_TARBALL_SHA256 for Linux ${KERNEL_VERSION}" >&2
@@ -55,7 +52,7 @@ case "${ENABLE_DEVMEM}" in
     ;;
 esac
 
-OUTPUT_PATH="${1:-${REPO_ROOT}/dist/sporevm-${KERNEL_PROFILE}-${KERNEL_ARCH}-kernel-${KERNEL_VERSION}-Image}"
+OUTPUT_PATH="${1:-${REPO_ROOT}/dist/sporevm-${KERNEL_PROFILE}-${KERNEL_ARCH}-kernel-${KERNEL_VERSION}-${KERNEL_IMAGE_SUFFIX}}"
 CONFIG_PATH="${OUTPUT_PATH}.config"
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 OUTPUT_DIR="$(cd "$(dirname "${OUTPUT_PATH}")" && pwd)"
@@ -68,13 +65,31 @@ else
   BUILD_MOUNT="${BUILD_VOLUME}:/build"
 fi
 
+if [[ "${DOCKER_IMAGE}" == "${DEFAULT_DOCKER_IMAGE}" ]]; then
+  docker build \
+    --load \
+    --platform "${DOCKER_PLATFORM}" \
+    --tag "${DOCKER_IMAGE}" \
+    --file "${REPO_ROOT}/Dockerfile" \
+    "${REPO_ROOT}"
+fi
+
 docker run --rm \
+  --ulimit nofile=65536:65536 \
   --platform "${DOCKER_PLATFORM}" \
+  --hostname "${KBUILD_BUILD_HOST}" \
   -e "KERNEL_VERSION=${KERNEL_VERSION}" \
   -e "KERNEL_PROFILE=${KERNEL_PROFILE}" \
   -e "KERNEL_ARCH=${KERNEL_ARCH}" \
+  -e "KERNEL_MAKE_ARCH=${KERNEL_MAKE_ARCH}" \
+  -e "KERNEL_BUILD_TARGET=${KERNEL_BUILD_TARGET}" \
+  -e "KERNEL_BOOT_PATH=${KERNEL_BOOT_PATH}" \
   -e "KERNEL_CROSS_COMPILE=${KERNEL_CROSS_COMPILE}" \
   -e "KERNEL_TARBALL_SHA256=${KERNEL_TARBALL_SHA256}" \
+  -e "KBUILD_BUILD_USER=${KBUILD_BUILD_USER}" \
+  -e "KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST}" \
+  -e "KBUILD_BUILD_TIMESTAMP=${KBUILD_BUILD_TIMESTAMP}" \
+  -e "KBUILD_BUILD_VERSION=${KBUILD_BUILD_VERSION}" \
   -e "ENABLE_DEVMEM=${ENABLE_DEVMEM}" \
   -e "OUTPUT_BASENAME=${OUTPUT_BASENAME}" \
   -e "CONFIG_BASENAME=${CONFIG_BASENAME}" \
@@ -83,24 +98,6 @@ docker run --rm \
   "${DOCKER_IMAGE}" \
   bash -lc '
     set -euo pipefail
-
-    export DEBIAN_FRONTEND=noninteractive
-    packages=(
-      bc \
-      bison \
-      build-essential \
-      ca-certificates \
-      curl \
-      flex \
-      libelf-dev \
-      libssl-dev \
-      xz-utils
-    )
-    if [[ -n "${KERNEL_CROSS_COMPILE}" ]]; then
-      packages+=(gcc-aarch64-linux-gnu)
-    fi
-    apt-get update
-    apt-get install -y --no-install-recommends "${packages[@]}"
 
     src="/build/linux-${KERNEL_VERSION}"
     tarball="/build/linux-${KERNEL_VERSION}.tar.xz"
@@ -132,14 +129,17 @@ docker run --rm \
       printf "%s\n" "${KERNEL_TARBALL_SHA256}" > "${source_stamp}"
     fi
 
-    out="/build/out-vz-${KERNEL_PROFILE}-pci-${KERNEL_VERSION}"
+    if [[ "${KERNEL_ARCH}" == "arm64" ]]; then
+      out="/build/out-vz-${KERNEL_PROFILE}-pci-${KERNEL_VERSION}"
+    else
+      out="/build/out-${KERNEL_ARCH}-${KERNEL_PROFILE}-${KERNEL_VERSION}"
+    fi
     rm -rf "${out}"
     mkdir -p "${out}"
 
-    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" tinyconfig
+    make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" tinyconfig
     "${src}/scripts/config" --file "${out}/.config" \
       -e 64BIT \
-      -e ARM64_4K_PAGES \
       -e BINFMT_ELF \
       -e TTY \
       -e VT \
@@ -147,22 +147,13 @@ docker run --rm \
       -e HVC_DRIVER \
       -e VIRTIO \
       -e VIRTIO_MENU \
-      -e VIRTIO_PCI \
       -e VIRTIO_MMIO \
-      -e VIRTIO_PCI_LEGACY \
       -e VIRTIO_CONSOLE \
       -e VIRTIO_BALLOON \
       -e MEMORY_BALLOON \
       -e BALLOON_COMPACTION \
       -e COMPACTION \
       -e PAGE_REPORTING \
-      -e ARM_AMBA \
-      -e RTC_CLASS \
-      -e RTC_HCTOSYS \
-      -e RTC_INTF_DEV \
-      -e RTC_INTF_PROC \
-      -e RTC_INTF_SYSFS \
-      -e RTC_DRV_PL031 \
       -e VSOCKETS \
       -e VIRTIO_VSOCKETS \
       -e NET \
@@ -182,11 +173,6 @@ docker run --rm \
       -e TMPFS \
       -e EMBEDDED \
       -e EXPERT \
-      -e PCI \
-      -e PCI_HOST_GENERIC \
-      -e PCI_MSI \
-      -e PCI_MSI_IRQ_DOMAIN \
-      -e GENERIC_MSI_IRQ_DOMAIN \
       -e CC_OPTIMIZE_FOR_PERFORMANCE \
       -d CC_OPTIMIZE_FOR_SIZE \
       -d MODULES \
@@ -211,6 +197,46 @@ docker run --rm \
       -d BPF_SYSCALL \
       -d ZSWAP
 
+    if [[ "${KERNEL_ARCH}" == "arm64" ]]; then
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e ARM64_4K_PAGES \
+        -e VIRTIO_PCI \
+        -e VIRTIO_PCI_LEGACY \
+        -e ARM_AMBA \
+        -e RTC_CLASS \
+        -e RTC_HCTOSYS \
+        -e RTC_INTF_DEV \
+        -e RTC_INTF_PROC \
+        -e RTC_INTF_SYSFS \
+        -e RTC_DRV_PL031 \
+        -e PCI \
+        -e PCI_HOST_GENERIC \
+        -e PCI_MSI \
+        -e PCI_MSI_IRQ_DOMAIN \
+        -e GENERIC_MSI_IRQ_DOMAIN
+    else
+      "${src}/scripts/config" --file "${out}/.config" \
+        -e X86_64 \
+        -e SMP \
+        -e X86_MPPARSE \
+        -e HYPERVISOR_GUEST \
+        -e PARAVIRT \
+        -e KVM_GUEST \
+        -e RELOCATABLE \
+        -e VIRTIO_MMIO_CMDLINE_DEVICES \
+        -d ACPI \
+        -d EFI \
+        -d PCI \
+        -d VIRTIO_PCI \
+        -d VIRTIO_PCI_LEGACY \
+        -d RTC_CLASS \
+        -d SERIAL_8250 \
+        -d SERIAL_8250_CONSOLE \
+        -d KEYBOARD_ATKBD \
+        -d MOUSE_PS2 \
+        -d SERIO_I8042
+    fi
+
     if [[ "${KERNEL_PROFILE}" = "initrd" || "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
       "${src}/scripts/config" --file "${out}/.config" \
         -e BLK_DEV_INITRD \
@@ -220,10 +246,17 @@ docker run --rm \
     fi
 
     if [[ "${ENABLE_DEVMEM}" = "1" ]]; then
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e DEVMEM \
-        -d STRICT_DEVMEM \
-        -d IO_STRICT_DEVMEM
+      if [[ "${KERNEL_ARCH}" == "x86_64" ]]; then
+        "${src}/scripts/config" --file "${out}/.config" \
+          -e DEVMEM \
+          -e STRICT_DEVMEM \
+          -d IO_STRICT_DEVMEM
+      else
+        "${src}/scripts/config" --file "${out}/.config" \
+          -e DEVMEM \
+          -d STRICT_DEVMEM \
+          -d IO_STRICT_DEVMEM
+      fi
     else
       "${src}/scripts/config" --file "${out}/.config" \
         -d DEVMEM \
@@ -333,10 +366,10 @@ docker run --rm \
         -e VIRTIO_MEM
     fi
 
-    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" olddefconfig
-    make -C "${src}" O="${out}" ARCH="${KERNEL_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" -j"$(nproc)" Image
+    make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" olddefconfig
+    make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" -j"$(nproc)" "${KERNEL_BUILD_TARGET}"
 
-    cp "${out}/arch/${KERNEL_ARCH}/boot/Image" "/out/${OUTPUT_BASENAME}"
+    cp "${out}/${KERNEL_BOOT_PATH}" "/out/${OUTPUT_BASENAME}"
     cp "${out}/.config" "/out/${CONFIG_BASENAME}"
   '
 
