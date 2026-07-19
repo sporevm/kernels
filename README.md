@@ -24,6 +24,10 @@ MMIO page without exposing ordinary system RAM.
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
 `07a9b6d8a9efd2b7c5e886d1c010e67245fa132c8b48cf567f200099b55abee8`.
+The exact approved x86_64 image, config, checksum, and manifest are retained in
+`approved/x86_64/6.1.155/`. CI stages those files verbatim and verifies all four
+file hashes before upload and again before release publication. The ARM64
+release asset continues to be built normally.
 
 ## Build
 
@@ -54,5 +58,6 @@ Useful environment variables:
 
 ## CI
 
-Buildkite builds both architectures on hosted agents. Tagged builds then
-publish the assets and `dist/kernels.tar.gz` to the matching GitHub Release.
+Buildkite builds ARM64 and stages the approved x86_64 artifact set on hosted
+agents. Tagged builds then publish both architectures and `dist/kernels.tar.gz`
+to the matching GitHub Release.

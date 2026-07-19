@@ -11,49 +11,9 @@ require_command() {
   command -v "$name" >/dev/null 2>&1 || die "missing required command: ${name}"
 }
 
-verify_x86_64_release_digest() {
-  local asset_base image_path checksum_path manifest_path
-
-  asset_base="sporevm-x86_64-linux-6.1.155"
-  image_path="${KERNEL_RELEASE_DIR}/${asset_base}-bzImage"
-  checksum_path="${image_path}.sha256"
-  manifest_path="${KERNEL_RELEASE_DIR}/${asset_base}.manifest.json"
-
-  EXPECTED_SHA256="${EXPECTED_X86_64_KERNEL_SHA256}" \
-  IMAGE_PATH="${image_path}" \
-  CHECKSUM_PATH="${checksum_path}" \
-  MANIFEST_PATH="${manifest_path}" \
-  python3 - <<'PY' || die "x86_64 release assets failed approved digest verification"
-import hashlib
-import json
-import os
-import pathlib
-import sys
-
-expected = os.environ["EXPECTED_SHA256"]
-image_path = pathlib.Path(os.environ["IMAGE_PATH"])
-checksum_path = pathlib.Path(os.environ["CHECKSUM_PATH"])
-manifest_path = pathlib.Path(os.environ["MANIFEST_PATH"])
-
-for path in (image_path, checksum_path, manifest_path):
-    if not path.is_file():
-        print(f"missing x86_64 release asset: {path}", file=sys.stderr)
-        raise SystemExit(1)
-
-actual = hashlib.sha256(image_path.read_bytes()).hexdigest()
-recorded_fields = checksum_path.read_text().split()
-manifest_sha256 = json.loads(manifest_path.read_text()).get("sha256")
-
-if actual != expected:
-    print(f"x86_64 bzImage SHA-256 is {actual}; expected {expected}", file=sys.stderr)
-    raise SystemExit(1)
-if recorded_fields != [expected, image_path.name]:
-    print(f"x86_64 checksum asset does not record {expected}", file=sys.stderr)
-    raise SystemExit(1)
-if manifest_sha256 != expected:
-    print(f"x86_64 manifest SHA-256 is {manifest_sha256}; expected {expected}", file=sys.stderr)
-    raise SystemExit(1)
-PY
+verify_x86_64_release_assets() {
+  "${SCRIPT_DIR}/verify-approved-x86-kernel-assets.sh" "${KERNEL_RELEASE_DIR}" ||
+    die "x86_64 release assets failed approved digest verification"
 }
 
 normalize_secret_value() {
@@ -149,7 +109,7 @@ download_kernel_release_artifacts() {
   mapfile -t downloaded_assets < <(find "${KERNEL_RELEASE_DIR}" -maxdepth 1 -type f | sort)
   [[ "${#downloaded_assets[@]}" -gt 0 ]] || die "missing downloaded kernel release assets"
 
-  verify_x86_64_release_digest
+  verify_x86_64_release_assets
   tar -C "${DIST_DIR}" -czf "${ARCHIVE_PATH}" kernels
 }
 
@@ -242,7 +202,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${REPO_ROOT}/dist"
 KERNEL_RELEASE_DIR="${DIST_DIR}/kernels"
 ARCHIVE_PATH="${DIST_DIR}/kernels.tar.gz"
-EXPECTED_X86_64_KERNEL_SHA256="07a9b6d8a9efd2b7c5e886d1c010e67245fa132c8b48cf567f200099b55abee8"
 GITHUB_REPOSITORY_NAME="${SPOREVM_KERNELS_GITHUB_REPOSITORY:-sporevm/kernels}"
 GITHUB_API_BASE="https://api.github.com/repos/${GITHUB_REPOSITORY_NAME}"
 declare -a downloaded_assets=()
