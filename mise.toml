@@ -12,7 +12,10 @@ run = "bash -n scripts/*.sh"
 
 [tasks.test]
 description = "Run focused script tests"
-run = "scripts/test-kernel-architecture.sh"
+run = """
+scripts/test-kernel-architecture.sh
+scripts/test-approved-x86-kernel-assets.sh
+"""
 
 [tasks.check]
 description = "Run local checks"

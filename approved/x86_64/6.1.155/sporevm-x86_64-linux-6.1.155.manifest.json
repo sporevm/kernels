@@ -1,0 +1,39 @@
+{
+  "arch": "x86_64",
+  "assets": {
+    "config": "sporevm-x86_64-linux-6.1.155-bzImage.config",
+    "image": "sporevm-x86_64-linux-6.1.155-bzImage",
+    "manifest": "sporevm-x86_64-linux-6.1.155.manifest.json",
+    "sha256": "sporevm-x86_64-linux-6.1.155-bzImage.sha256"
+  },
+  "builder": {
+    "docker_image": "ubuntu:22.04",
+    "docker_platform": "linux/amd64",
+    "kernel_tarball_sha256": "c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73",
+    "repository": "sporevm/kernels",
+    "script": "scripts/build-sporevm-kernel.sh"
+  },
+  "id": "sporevm-x86_64-linux-6.1.155",
+  "kernel_config": {
+    "base": "sporevm-initrd+rootfs",
+    "binfmt_script": true,
+    "devmem": true,
+    "ext4": true,
+    "initrd": true,
+    "io_strict_devmem": false,
+    "multiuser": true,
+    "posix_timers": true,
+    "strict_devmem": true,
+    "sysvipc": true,
+    "virtio_blk": true
+  },
+  "linux_version": "6.1.155",
+  "project": "sporevm",
+  "purpose": "run",
+  "sha256": "07a9b6d8a9efd2b7c5e886d1c010e67245fa132c8b48cf567f200099b55abee8",
+  "source": {
+    "commit": "4f165a82feded571da55ae276bfe0133adefb64e",
+    "repository": "sporevm/kernels",
+    "tag": ""
+  }
+}
