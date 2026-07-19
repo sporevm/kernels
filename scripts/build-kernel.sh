@@ -10,11 +10,16 @@ source "${SCRIPT_DIR}/kernel-architecture.sh"
 KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
 KERNEL_PROFILE="${SPOREVM_KERNEL_PROFILE:-rootfs}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
-DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-ubuntu:22.04}"
+DEFAULT_DOCKER_IMAGE="sporevm-kernel-builder:ubuntu-22.04"
+DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_PLATFORM="${SPOREVM_KERNEL_DOCKER_PLATFORM:-linux/amd64}"
 ENABLE_DEVMEM="${SPOREVM_KERNEL_ENABLE_DEVMEM:-0}"
 BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-}"
 BUILD_VOLUME="${SPOREVM_KERNEL_BUILD_VOLUME:-sporevm-kernel}"
+KBUILD_BUILD_USER="${SPOREVM_KERNEL_BUILD_USER:-root}"
+KBUILD_BUILD_HOST="${SPOREVM_KERNEL_BUILD_HOST:-906884a1e5be}"
+KBUILD_BUILD_TIMESTAMP="${SPOREVM_KERNEL_BUILD_TIMESTAMP:-Sat Jul 18 04:00:42 UTC 2026}"
+KBUILD_BUILD_VERSION="${SPOREVM_KERNEL_BUILD_VERSION:-1}"
 DEFAULT_KERNEL_TARBALL_SHA256=""
 if [[ "${KERNEL_VERSION}" == "6.1.155" ]]; then
   DEFAULT_KERNEL_TARBALL_SHA256="c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73"
@@ -60,9 +65,19 @@ else
   BUILD_MOUNT="${BUILD_VOLUME}:/build"
 fi
 
+if [[ "${DOCKER_IMAGE}" == "${DEFAULT_DOCKER_IMAGE}" ]]; then
+  docker build \
+    --load \
+    --platform "${DOCKER_PLATFORM}" \
+    --tag "${DOCKER_IMAGE}" \
+    --file "${REPO_ROOT}/Dockerfile" \
+    "${REPO_ROOT}"
+fi
+
 docker run --rm \
   --ulimit nofile=65536:65536 \
   --platform "${DOCKER_PLATFORM}" \
+  --hostname "${KBUILD_BUILD_HOST}" \
   -e "KERNEL_VERSION=${KERNEL_VERSION}" \
   -e "KERNEL_PROFILE=${KERNEL_PROFILE}" \
   -e "KERNEL_ARCH=${KERNEL_ARCH}" \
@@ -72,6 +87,10 @@ docker run --rm \
   -e "KERNEL_CROSS_COMPILE=${KERNEL_CROSS_COMPILE}" \
   -e "KERNEL_CROSS_PACKAGE=${KERNEL_CROSS_PACKAGE}" \
   -e "KERNEL_TARBALL_SHA256=${KERNEL_TARBALL_SHA256}" \
+  -e "KBUILD_BUILD_USER=${KBUILD_BUILD_USER}" \
+  -e "KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST}" \
+  -e "KBUILD_BUILD_TIMESTAMP=${KBUILD_BUILD_TIMESTAMP}" \
+  -e "KBUILD_BUILD_VERSION=${KBUILD_BUILD_VERSION}" \
   -e "ENABLE_DEVMEM=${ENABLE_DEVMEM}" \
   -e "OUTPUT_BASENAME=${OUTPUT_BASENAME}" \
   -e "CONFIG_BASENAME=${CONFIG_BASENAME}" \
@@ -80,24 +99,6 @@ docker run --rm \
   "${DOCKER_IMAGE}" \
   bash -lc '
     set -euo pipefail
-
-    export DEBIAN_FRONTEND=noninteractive
-    packages=(
-      bc \
-      bison \
-      build-essential \
-      ca-certificates \
-      curl \
-      flex \
-      libelf-dev \
-      libssl-dev \
-      xz-utils
-    )
-    if [[ -n "${KERNEL_CROSS_PACKAGE}" ]]; then
-      packages+=("${KERNEL_CROSS_PACKAGE}")
-    fi
-    apt-get update
-    apt-get install -y --no-install-recommends "${packages[@]}"
 
     src="/build/linux-${KERNEL_VERSION}"
     tarball="/build/linux-${KERNEL_VERSION}.tar.xz"
