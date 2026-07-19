@@ -239,7 +239,7 @@ if [[ -z "${KERNEL_TARBALL_SHA256}" && "${KERNEL_VERSION}" == "6.1.155" ]]; then
 fi
 resolve_kernel_architecture "${KERNEL_ARCH}" "${DOCKER_PLATFORM}" || die "unsupported release kernel arch: ${KERNEL_ARCH}"
 KERNEL_CROSS_COMPILE="${SPOREVM_KERNEL_CROSS_COMPILE-${KERNEL_DEFAULT_CROSS_COMPILE}}"
-resolve_kernel_cross_package "${KERNEL_ARCH}" "${KERNEL_CROSS_COMPILE}" || die "unsupported cross compiler for ${KERNEL_ARCH}"
+validate_kernel_cross_compile "${KERNEL_ARCH}" "${KERNEL_CROSS_COMPILE}" || die "unsupported cross compiler for ${KERNEL_ARCH}"
 
 KERNEL_CONFIG_DEVMEM="0"
 KERNEL_CONFIG_STRICT_DEVMEM=""

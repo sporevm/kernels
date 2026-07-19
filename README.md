@@ -41,7 +41,8 @@ Useful environment variables:
 - `SPOREVM_KERNEL_VERSION`, default `6.1.155`
 - `SPOREVM_KERNEL_ARCH`, `arm64` by default; also supports `x86_64`
 - `SPOREVM_KERNEL_DOCKER_IMAGE`, defaults to the pinned builder in `Dockerfile`
-- `SPOREVM_KERNEL_DOCKER_PLATFORM`, default `linux/amd64`
+- `SPOREVM_KERNEL_DOCKER_PLATFORM`, default `linux/amd64`; ARM64 kernels also
+  support native `linux/arm64` builds
 - `SPOREVM_KERNEL_CROSS_COMPILE`, default `aarch64-linux-gnu-` when needed
 - `SPOREVM_KERNEL_TARBALL_SHA256`
 - `SPOREVM_KERNEL_BUILD_USER`, `SPOREVM_KERNEL_BUILD_HOST`,
