@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck source=scripts/kernel-architecture.sh
 source "${SCRIPT_DIR}/kernel-architecture.sh"
 
-KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.155}"
+KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.191}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
 DOCKER_PLATFORM="${SPOREVM_KERNEL_DOCKER_PLATFORM:-linux/amd64}"
 resolve_kernel_architecture "${KERNEL_ARCH}" "${DOCKER_PLATFORM}"
