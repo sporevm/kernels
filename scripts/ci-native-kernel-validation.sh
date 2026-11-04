@@ -23,6 +23,10 @@ mkdir -p "${evidence}"
 exec > >(tee "${evidence}/validation.log") 2>&1
 work="$(mktemp -d /tmp/sporevm-kernel-validation.XXXXXX)"
 trap 'rm -rf "${work}"' EXIT
+# Keep saved-spore smoke directories on the same filesystem as their cache.
+printf 'Inherited TMPDIR=%s\n' "${TMPDIR:-/tmp}"
+stat -c 'Inherited temp device=%d path=%n' "${TMPDIR:-/tmp}"
+export TMPDIR="${work}"
 seed="${work}/seed"
 mkdir -p "${seed}"
 asset="sporevm-${arch}-linux-${version}-${image_kind}"
@@ -80,6 +84,8 @@ unset SPOREVM_KERNEL_IMAGE SPOREVM_RUN_INITRD
 managed="${SPOREVM_KERNEL_CACHE_DIR}/sporevm-kernels/${release}"
 mkdir -p "${managed}" "${SPOREVM_RUNTIME_DIR}"
 chmod 0700 "${SPOREVM_RUNTIME_DIR}"
+mkdir -p "${SPOREVM_ROOTFS_CACHE_DIR}"
+stat -c 'Validation device=%d path=%n' "${TMPDIR}" "${SPOREVM_ROOTFS_CACHE_DIR}"
 cp "${seed}/${asset}" "${seed}/${asset}.config" "${seed}/${asset}.sha256" "${managed}/"
 chmod 0444 "${managed}/"*
 mise exec -- scripts/kernel/ensure-managed-kernel.sh run
