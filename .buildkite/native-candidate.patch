@@ -1,0 +1,98 @@
+diff --git a/src/run.zig b/src/run.zig
+--- a/src/run.zig
++++ b/src/run.zig
+@@ -66,7 +66,7 @@
+ const default_kernel_repository = "sporevm/kernels";
+ const default_kernel_release = "v0.6.3";
+ const default_x86_kernel_release = "v0.7.0";
+-const default_kernel_version = "6.1.155";
++const default_kernel_version = "6.1.191";
+ pub const rootfs_growth_experiments_env = "SPOREVM_ROOTFS_GROWTH_EXPERIMENTS";
+ const force_write_zeroes_unsupported_experiment_env = "SPOREVM_WRITE_ZEROES_FORCE_UNSUPPORTED_EXPERIMENT";
+ const force_write_zeroes_backend_failure_experiment_env = "SPOREVM_WRITE_ZEROES_FORCE_BACKEND_FAILURE_EXPERIMENT";
+@@ -126,9 +126,9 @@
+ };
+ const approved_x86_kernel_sha256 = [_]u8{
+-    0x07, 0xa9, 0xb6, 0xd8, 0xa9, 0xef, 0xd2, 0xb7,
+-    0xc5, 0xe8, 0x86, 0xd1, 0xc0, 0x10, 0xe6, 0x72,
+-    0x45, 0xfa, 0x13, 0x2c, 0x8b, 0x48, 0xcf, 0x56,
+-    0x7f, 0x20, 0x00, 0x99, 0xb5, 0x5a, 0xbe, 0xe8,
++    0x13, 0xca, 0x22, 0xff, 0x42, 0xb7, 0x95, 0xc3,
++    0x33, 0x65, 0xc8, 0x9f, 0xad, 0x3e, 0x7d, 0x5b,
++    0xbf, 0x0a, 0x97, 0x2c, 0xda, 0xed, 0xc7, 0xf7,
++    0x0f, 0x2f, 0x78, 0x27, 0x0e, 0xe7, 0xbb, 0x82,
+ };
+ const direct_image_platform = directImagePlatformFor(builtin.cpu.arch) catch
+     @compileError("SporeVM product execution requires an arm64 or amd64 host architecture");
+diff --git a/scripts/kernel/ensure-managed-kernel.sh b/scripts/kernel/ensure-managed-kernel.sh
+--- a/scripts/kernel/ensure-managed-kernel.sh
++++ b/scripts/kernel/ensure-managed-kernel.sh
+@@ -157,7 +157,7 @@
+   actual="$(sha256_file "${image}")"
+   [[ "${actual}" == "${expected}" ]] || return 1
+   if [[ "${kernel_arch}" == "x86_64" && "$(basename "${image}")" == sporevm-x86_64-* ]]; then
+-    [[ "${actual}" == "07a9b6d8a9efd2b7c5e886d1c010e67245fa132c8b48cf567f200099b55abee8" ]] || {
++    [[ "${actual}" == "13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82" ]] || {
+       echo "error: managed x86 kernel does not match the approved candidate digest" >&2
+       return 1
+     }
+diff --git a/test/smoke/x86/fail-closed.sh b/test/smoke/x86/fail-closed.sh
+--- a/test/smoke/x86/fail-closed.sh
++++ b/test/smoke/x86/fail-closed.sh
+@@ -5,7 +5,7 @@
+ spore_bin="${SPORE_BIN:-${repo_root}/zig-out/bin/spore}"
+ seed_dir="${SPOREVM_X86_MANAGED_KERNEL_SEED_DIR:-}"
+ release="${SPOREVM_KERNEL_RELEASE:-v0.7.0}"
+-asset="sporevm-x86_64-linux-6.1.155-bzImage"
++asset="sporevm-x86_64-linux-6.1.191-bzImage"
+ 
+ die() {
+   echo "error: $*" >&2
+diff --git a/test/smoke/x86/fresh-product.sh b/test/smoke/x86/fresh-product.sh
+--- a/test/smoke/x86/fresh-product.sh
++++ b/test/smoke/x86/fresh-product.sh
+@@ -5,7 +5,7 @@
+ spore_bin="${SPORE_BIN:-${repo_root}/zig-out/bin/spore}"
+ seed_dir="${SPOREVM_X86_MANAGED_KERNEL_SEED_DIR:-}"
+ release="${SPOREVM_KERNEL_RELEASE:-v0.7.0}"
+-asset="sporevm-x86_64-linux-6.1.155-bzImage"
++asset="sporevm-x86_64-linux-6.1.191-bzImage"
+ 
+ die() {
+   echo "error: $*" >&2
+diff --git a/test/smoke/x86/slice3a.sh b/test/smoke/x86/slice3a.sh
+--- a/test/smoke/x86/slice3a.sh
++++ b/test/smoke/x86/slice3a.sh
+@@ -3,7 +3,7 @@
+ 
+ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ seed_dir="${SPOREVM_X86_MANAGED_KERNEL_SEED_DIR:-}"
+-asset="sporevm-x86_64-linux-6.1.155-bzImage"
++asset="sporevm-x86_64-linux-6.1.191-bzImage"
+ slice2a_bin="${SPOREVM_X86_SLICE2A_BIN:-${repo_root}/zig-out/bin/x86-slice2a-smoke}"
+ 
+ [[ "$(uname -s)-$(uname -m)" == "Linux-x86_64" ]] || {
+diff --git a/test/smoke/x86/slice3b.sh b/test/smoke/x86/slice3b.sh
+--- a/test/smoke/x86/slice3b.sh
++++ b/test/smoke/x86/slice3b.sh
+@@ -5,7 +5,7 @@
+ spore_bin="${SPORE_BIN:-${repo_root}/zig-out/bin/spore}"
+ seed_dir="${SPOREVM_X86_MANAGED_KERNEL_SEED_DIR:-}"
+ release="${SPOREVM_KERNEL_RELEASE:-v0.7.0}"
+-asset="sporevm-x86_64-linux-6.1.155-bzImage"
++asset="sporevm-x86_64-linux-6.1.191-bzImage"
+ 
+ die() {
+   echo "error: $*" >&2
+diff --git a/test/smoke/x86/slice3c.sh b/test/smoke/x86/slice3c.sh
+--- a/test/smoke/x86/slice3c.sh
++++ b/test/smoke/x86/slice3c.sh
+@@ -5,7 +5,7 @@
+ spore_bin="${SPORE_BIN:-${repo_root}/zig-out/bin/spore}"
+ seed_dir="${SPOREVM_X86_MANAGED_KERNEL_SEED_DIR:-}"
+ release="${SPOREVM_KERNEL_RELEASE:-v0.7.0}"
+-asset="sporevm-x86_64-linux-6.1.155-bzImage"
++asset="sporevm-x86_64-linux-6.1.191-bzImage"
+ 
+ die() {
+   echo "error: $*" >&2

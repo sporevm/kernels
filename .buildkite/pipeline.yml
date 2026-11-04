@@ -1,32 +1,20 @@
 steps:
-  - label: ":penguin: Build SporeVM kernel"
-    key: build-sporevm
-    command: "scripts/ci-build-kernel-asset.sh"
-    artifact_paths: "dist/kernels/*"
+  - label: ":test_tube: Native ARM64 Linux {{matrix}}"
+    command: "bash scripts/ci-native-kernel-validation.sh arm64 {{matrix}}"
+    matrix: ["6.1.155", "6.1.191"]
+    artifact_paths: "dist/native-validation/**/*"
     timeout_in_minutes: 45
-    cache:
-      paths:
-        - ".kernel-cache/sporevm/"
-      key: "v1-sporevm-kernel-6.1.191"
+    plugins: &mise_plugins
+      - mise#e53a95a05d51dd20b1bfcd98fb3f9fe13292812b:
+          version: "2026.5.12"
     agents:
-      queue: hosted
+      queue: sporevm-linux-arm64
 
-  - label: ":package: Stage approved SporeVM x86_64 kernel"
-    key: build-sporevm-x86-64
-    command: "SPOREVM_KERNEL_ARCH=x86_64 scripts/ci-build-kernel-asset.sh"
-    artifact_paths: "dist/kernels/*"
+  - label: ":test_tube: Native x86_64 Linux {{matrix}}"
+    command: "bash scripts/ci-native-kernel-validation.sh x86_64 {{matrix}}"
+    matrix: ["6.1.155", "6.1.191"]
+    artifact_paths: "dist/native-validation/**/*"
     timeout_in_minutes: 45
+    plugins: *mise_plugins
     agents:
-      queue: hosted
-
-  - wait
-
-  - label: ":rocket: Publish release"
-    command: |
-      if [[ -z "$${BUILDKITE_TAG:-}" ]]; then
-        echo "Skipping release publish because this is not a tagged build"
-        exit 0
-      fi
-      scripts/ci-publish-release.sh
-    agents:
-      queue: hosted
+      queue: sporevm-linux-amd64
