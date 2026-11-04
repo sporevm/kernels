@@ -56,9 +56,14 @@ cd "${work}/core"
 if [[ "${version}" == 6.1.191 ]]; then
   # Update only consumer pins and asset names, preserving all smoke assertions.
   git apply "${repo_root}/.buildkite/native-candidate.patch"
-  git diff --check
-  git diff >"${evidence}/test-only-consumer-pins.patch"
 fi
+if [[ "${arch}" == arm64 ]]; then
+  # Existing capture smoke must count child manifests, not shared-chunks.
+  # Apply the same correction to both control and candidate.
+  git apply "${repo_root}/.buildkite/native-smoke-compat.patch"
+fi
+git diff --check
+git diff >"${evidence}/test-only-core-changes.patch"
 printf 'core=%s\narch=%s\nversion=%s\nartifact_build=%s\n' \
   "$(git rev-parse HEAD)" "${arch}" "${version}" "${artifact_build}" | tee "${evidence}/identity.txt"
 mise trust "${work}/core/mise.toml"
@@ -90,13 +95,26 @@ if [[ "${arch}" == x86_64 ]]; then
   mise run smoke:x86-slice3c
 else
   echo "--- ARM64 product, filesystem, network, capture/fork, and build tests"
+  failed=0
   for smoke in \
     run/basic run/file-locking run/cgroup \
     network/config network/dns network/http network/deny network/bind-service network/forward \
     run/capture lifecycle/basic rootfs/writable; do
     echo "--- ${smoke}"
-    mise exec -- bash "test/smoke/${smoke}.sh"
+    if mise exec -- bash "test/smoke/${smoke}.sh"; then
+      printf '%s: PASS\n' "${smoke}" >>"${evidence}/cases.txt"
+    else
+      printf '%s: FAIL\n' "${smoke}" >>"${evidence}/cases.txt"
+      failed=1
+    fi
   done
-  mise exec -- bash scripts/ci/spore-build-smoke.sh
+  if mise exec -- bash scripts/ci/spore-build-smoke.sh; then
+    echo 'VM-backed build: PASS' >>"${evidence}/cases.txt"
+  else
+    echo 'VM-backed build: FAIL' >>"${evidence}/cases.txt"
+    failed=1
+  fi
+  cat "${evidence}/cases.txt"
+  [[ "${failed}" == 0 ]] || exit 1
 fi
 echo "Native ${arch} Linux ${version}: PASS" | tee "${evidence}/result.txt"

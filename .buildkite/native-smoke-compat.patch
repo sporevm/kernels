@@ -1,0 +1,14 @@
+diff --git a/test/smoke/run/capture.sh b/test/smoke/run/capture.sh
+--- a/test/smoke/run/capture.sh
++++ b/test/smoke/run/capture.sh
+@@ -126,9 +126,9 @@
+ "${spore_bin}" fork "${capture_dir}" --count 1 --out "${fork_dir}" >"${workdir}/fork.stdout" 2>"${workdir}/fork.stderr"
+ children=()
+ while IFS= read -r child; do
+   children+=("${child}")
+-done < <(find "${fork_dir}" -mindepth 1 -maxdepth 1 -type d | sort)
++done < <(find "${fork_dir}" -mindepth 1 -maxdepth 1 -type d -exec test -f '{}/manifest.json' \; -print | sort)
+ [[ "${#children[@]}" -eq 1 ]] || die "fork did not create one child spore"
+ child_dir="${children[0]}"
+ 
+ "${spore_bin}" attach --events=jsonl --backend "${backend}" "${child_dir}" >"${resume_stdout}" 2>"${resume_stderr}" &
