@@ -62,8 +62,8 @@ if [[ "${version}" == 6.1.191 ]]; then
   git apply "${repo_root}/.buildkite/native-candidate.patch"
 fi
 if [[ "${arch}" == arm64 ]]; then
-  # Existing capture smoke must count child manifests, not shared-chunks.
-  # Apply the same correction to both control and candidate.
+  # Match the current shared-chunk batch and chunk-index disk contracts.
+  # Apply identical smoke corrections to both control and candidate.
   git apply "${repo_root}/.buildkite/native-smoke-compat.patch"
 fi
 git diff --check

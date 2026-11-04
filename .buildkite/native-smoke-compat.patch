@@ -1,8 +1,97 @@
+diff --git a/test/smoke/rootfs/writable.sh b/test/smoke/rootfs/writable.sh
+index 84152df..6db4c1b 100755
+--- a/test/smoke/rootfs/writable.sh
++++ b/test/smoke/rootfs/writable.sh
+@@ -22,15 +22,19 @@ infer_backend() {
+   esac
+ }
+ 
+-disk_layer_count() {
++disk_index_digest() {
+   python3 - "$1" <<'PY'
+ import json
++import re
+ import sys
+ 
+ with open(sys.argv[1], "r", encoding="utf-8") as f:
+     manifest = json.load(f)
+-disk = manifest.get("disk") or {}
+-print(len(disk.get("layers") or []))
++disk = manifest["disk"]
++assert disk["kind"] == "chunk-index-disk-v0", disk
++assert disk.get("layers", []) == [], disk
++assert re.fullmatch(r"blake3:[0-9a-f]{64}", disk["base"]), disk
++print(disk["base"])
+ PY
+ }
+ 
+@@ -92,9 +96,9 @@ printf 'writable rootfs image: %s -> %s\n' "${image_ref}" "${resolved_image_ref}
+ }
+ 
+ [[ -f "${base_dir}/manifest.json" ]] || die "base capture did not write manifest"
+-[[ "$(disk_layer_count "${base_dir}/manifest.json")" == "1" ]] || {
++base_index="$(disk_index_digest "${base_dir}/manifest.json")" || {
+   cat "${base_dir}/manifest.json" >&2 || true
+-  die "base capture did not record one writable disk layer"
++  die "base capture did not record a valid writable disk index"
+ }
+ 
+ # Anything resume can restore must also pass inspect; disk-backed captures
+@@ -112,9 +116,9 @@ printf 'writable rootfs image: %s -> %s\n' "${image_ref}" "${resolved_image_ref}
+ for child_name in 000000 000001 000002 000003; do
+   child_manifest="${fork_dir}/${child_name}/manifest.json"
+   [[ -f "${child_manifest}" ]] || die "fork child ${child_name} did not write manifest"
+-  [[ "$(disk_layer_count "${child_manifest}")" == "1" ]] || {
++  [[ "$(disk_index_digest "${child_manifest}")" == "${base_index}" ]] || {
+     cat "${child_manifest}" >&2 || true
+-    die "fork child ${child_name} did not preserve parent disk layer"
++    die "fork child ${child_name} did not preserve parent disk index"
+   }
+ done
+ 
+@@ -129,9 +133,10 @@ done
+   die "fork child 000000 writable capture failed"
+ }
+ 
+-[[ "$(disk_layer_count "${fork_child0_capture_dir}/manifest.json")" == "2" ]] || {
++fork_child0_index="$(disk_index_digest "${fork_child0_capture_dir}/manifest.json")"
++[[ "${fork_child0_index}" != "${base_index}" ]] || {
+   cat "${fork_child0_capture_dir}/manifest.json" >&2 || true
+-  die "fork child 000000 capture did not append its own disk layer"
++  die "fork child 000000 capture did not change its disk index"
+ }
+ 
+ "${spore_bin}" run \
+@@ -187,9 +192,10 @@ done
+ }
+ 
+ [[ -f "${child_dir}/manifest.json" ]] || die "child capture did not write manifest"
+-[[ "$(disk_layer_count "${child_dir}/manifest.json")" == "2" ]] || {
++child_index="$(disk_index_digest "${child_dir}/manifest.json")"
++[[ "${child_index}" != "${base_index}" ]] || {
+   cat "${child_dir}/manifest.json" >&2 || true
+-  die "child capture did not append a second writable disk layer"
++  die "child capture did not change its disk index"
+ }
+ 
+ "${spore_bin}" run \
+@@ -224,9 +230,9 @@ grep -Fxq "child-layer-ok" "${verify_stdout}" || {
+ }
+ 
+ [[ -f "${unpacked_dir}/manifest.json" ]] || die "unpacked writable rootfs bundle did not write manifest"
+-[[ "$(disk_layer_count "${unpacked_dir}/manifest.json")" == "2" ]] || {
++[[ "$(disk_index_digest "${unpacked_dir}/manifest.json")" == "${child_index}" ]] || {
+   cat "${unpacked_dir}/manifest.json" >&2 || true
+-  die "unpacked writable rootfs bundle did not preserve two disk layers"
++  die "unpacked writable rootfs bundle did not preserve the disk index"
+ }
+ 
+ "${spore_bin}" run \
 diff --git a/test/smoke/run/capture.sh b/test/smoke/run/capture.sh
+index a1b5e7a..8fa999d 100755
 --- a/test/smoke/run/capture.sh
 +++ b/test/smoke/run/capture.sh
-@@ -126,9 +126,9 @@
- "${spore_bin}" fork "${capture_dir}" --count 1 --out "${fork_dir}" >"${workdir}/fork.stdout" 2>"${workdir}/fork.stderr"
+@@ -127,7 +127,7 @@ grep -Fq "saved spore at ${capture_dir}" "${run_stderr}" || {
  children=()
  while IFS= read -r child; do
    children+=("${child}")
@@ -11,4 +100,3 @@ diff --git a/test/smoke/run/capture.sh b/test/smoke/run/capture.sh
  [[ "${#children[@]}" -eq 1 ]] || die "fork did not create one child spore"
  child_dir="${children[0]}"
  
- "${spore_bin}" attach --events=jsonl --backend "${backend}" "${child_dir}" >"${resume_stdout}" 2>"${resume_stderr}" &
