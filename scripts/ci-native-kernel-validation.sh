@@ -29,6 +29,7 @@ asset="sporevm-${arch}-linux-${version}-${image_kind}"
 
 echo "--- Verify ${arch} Linux ${version} artifacts"
 if [[ "${version}" == 6.1.191 ]]; then
+  mkdir -p "${work}/download"
   buildkite-agent artifact download --build "${artifact_build}" \
     "dist/kernels/sporevm-${arch}-linux-${version}*" "${work}/download"
   cp "${work}/download/dist/kernels/"* "${seed}/"
