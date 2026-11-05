@@ -7,7 +7,7 @@ steps:
     cache:
       paths:
         - ".kernel-cache/sporevm/"
-      key: "v1-sporevm-kernel-6.1.155"
+      key: "v1-sporevm-kernel-6.1.191"
     agents:
       queue: hosted
 

@@ -23,11 +23,25 @@ MMIO page without exposing ordinary system RAM.
 
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
-`07a9b6d8a9efd2b7c5e886d1c010e67245fa132c8b48cf567f200099b55abee8`.
+`13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82`.
 The exact approved x86_64 image, config, checksum, and manifest are retained in
-`approved/x86_64/6.1.155/`. CI stages those files verbatim and verifies all four
+`approved/x86_64/6.1.191/`. CI stages those files verbatim and verifies all four
 file hashes before upload and again before release publication. The ARM64
 release asset continues to be built normally.
+
+## Security baseline
+
+Both architectures target upstream Linux **6.1.191** (6.1 LTS, released
+2026-10-30), including the IPv4 TCP use-after-free fix for
+[CVE-2026-98432](https://www.cve.org/CVERecord?id=CVE-2026-98432), first included
+in 6.1.190. This is a stable-kernel baseline, not a claim that every published
+CVE applies to this configuration or that no vulnerabilities remain.
+
+Updating the build default alone does not update x86_64 releases: rebuild and
+validate its four approved artifacts, then update their pinned hashes in
+`scripts/verify-approved-x86-kernel-assets.sh`. Consumers must select the new
+release and Linux version separately; existing guests are not updated by a
+change in this repository.
 
 ## Build
 
@@ -42,7 +56,7 @@ SPOREVM_KERNEL_ARCH=x86_64 \
 
 Useful environment variables:
 
-- `SPOREVM_KERNEL_VERSION`, default `6.1.155`
+- `SPOREVM_KERNEL_VERSION`, default `6.1.191`
 - `SPOREVM_KERNEL_ARCH`, `arm64` by default; also supports `x86_64`
 - `SPOREVM_KERNEL_DOCKER_IMAGE`, defaults to the pinned builder in `Dockerfile`
 - `SPOREVM_KERNEL_DOCKER_PLATFORM`, default `linux/amd64`; ARM64 kernels also
