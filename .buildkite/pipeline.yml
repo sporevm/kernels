@@ -1,21 +1,32 @@
 steps:
-  - label: ":penguin: Build SporeVM kernel"
+  - label: ":penguin: Build SporeVM arm64 kernel"
     key: build-sporevm
     command: "scripts/ci-build-kernel-asset.sh"
     artifact_paths: "dist/kernels/*"
     timeout_in_minutes: 45
     cache:
       paths:
-        - ".kernel-cache/sporevm/"
-      key: "v1-sporevm-kernel-6.1.191"
+        - ".kernel-cache/arm64/"
+      key: "v2-sporevm-kernel-arm64-6.1.191"
+    agents:
+      queue: hosted
+
+  - label: ":penguin: Build SporeVM x86_64 kernel"
+    key: build-sporevm-x86-64
+    command: "SPOREVM_KERNEL_ARCH=x86_64 scripts/ci-build-kernel-asset.sh dist/x86_64-build"
+    artifact_paths: "dist/x86_64-build/*"
+    timeout_in_minutes: 45
+    cache:
+      paths:
+        - ".kernel-cache/x86_64/"
+      key: "v1-sporevm-kernel-x86_64-6.1.191"
     agents:
       queue: hosted
 
   - label: ":package: Stage approved SporeVM x86_64 kernel"
-    key: build-sporevm-x86-64
-    command: "SPOREVM_KERNEL_ARCH=x86_64 scripts/ci-build-kernel-asset.sh"
+    key: stage-approved-x86-64
+    command: "scripts/ci-stage-approved-x86-kernel.sh"
     artifact_paths: "dist/kernels/*"
-    timeout_in_minutes: 45
     agents:
       queue: hosted
 

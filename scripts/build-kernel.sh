@@ -8,12 +8,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/kernel-architecture.sh"
 
 KERNEL_VERSION="${SPOREVM_KERNEL_VERSION:-6.1.191}"
-KERNEL_PROFILE="${SPOREVM_KERNEL_PROFILE:-rootfs}"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
 DEFAULT_DOCKER_IMAGE="sporevm-kernel-builder:ubuntu-22.04"
 DOCKER_IMAGE="${SPOREVM_KERNEL_DOCKER_IMAGE:-${DEFAULT_DOCKER_IMAGE}}"
 DOCKER_PLATFORM="${SPOREVM_KERNEL_DOCKER_PLATFORM:-linux/amd64}"
-ENABLE_DEVMEM="${SPOREVM_KERNEL_ENABLE_DEVMEM:-0}"
 BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-}"
 BUILD_VOLUME="${SPOREVM_KERNEL_BUILD_VOLUME:-sporevm-kernel}"
 KBUILD_BUILD_USER="${SPOREVM_KERNEL_BUILD_USER:-root}"
@@ -34,25 +32,7 @@ if [[ -z "${KERNEL_TARBALL_SHA256}" ]]; then
   exit 1
 fi
 
-case "${KERNEL_PROFILE}" in
-  initrd|rootfs|sporevm-run) ;;
-  *)
-    echo "unsupported SPOREVM_KERNEL_PROFILE: ${KERNEL_PROFILE}" >&2
-    echo "expected initrd, rootfs, or sporevm-run" >&2
-    exit 1
-    ;;
-esac
-
-case "${ENABLE_DEVMEM}" in
-  0|1) ;;
-  *)
-    echo "unsupported SPOREVM_KERNEL_ENABLE_DEVMEM: ${ENABLE_DEVMEM}" >&2
-    echo "expected 0 or 1" >&2
-    exit 1
-    ;;
-esac
-
-OUTPUT_PATH="${1:-${REPO_ROOT}/dist/sporevm-${KERNEL_PROFILE}-${KERNEL_ARCH}-kernel-${KERNEL_VERSION}-${KERNEL_IMAGE_SUFFIX}}"
+OUTPUT_PATH="${1:-${REPO_ROOT}/dist/sporevm-${KERNEL_ARCH}-linux-${KERNEL_VERSION}-${KERNEL_IMAGE_SUFFIX}}"
 CONFIG_PATH="${OUTPUT_PATH}.config"
 mkdir -p "$(dirname "${OUTPUT_PATH}")"
 OUTPUT_DIR="$(cd "$(dirname "${OUTPUT_PATH}")" && pwd)"
@@ -79,7 +59,6 @@ docker run --rm \
   --platform "${DOCKER_PLATFORM}" \
   --hostname "${KBUILD_BUILD_HOST}" \
   -e "KERNEL_VERSION=${KERNEL_VERSION}" \
-  -e "KERNEL_PROFILE=${KERNEL_PROFILE}" \
   -e "KERNEL_ARCH=${KERNEL_ARCH}" \
   -e "KERNEL_MAKE_ARCH=${KERNEL_MAKE_ARCH}" \
   -e "KERNEL_BUILD_TARGET=${KERNEL_BUILD_TARGET}" \
@@ -90,10 +69,10 @@ docker run --rm \
   -e "KBUILD_BUILD_HOST=${KBUILD_BUILD_HOST}" \
   -e "KBUILD_BUILD_TIMESTAMP=${KBUILD_BUILD_TIMESTAMP}" \
   -e "KBUILD_BUILD_VERSION=${KBUILD_BUILD_VERSION}" \
-  -e "ENABLE_DEVMEM=${ENABLE_DEVMEM}" \
   -e "OUTPUT_BASENAME=${OUTPUT_BASENAME}" \
   -e "CONFIG_BASENAME=${CONFIG_BASENAME}" \
   -v "${BUILD_MOUNT}" \
+  -v "${REPO_ROOT}/config:/config:ro" \
   -v "${OUTPUT_DIR}:/out" \
   "${DOCKER_IMAGE}" \
   bash -lc '
@@ -129,243 +108,13 @@ docker run --rm \
       printf "%s\n" "${KERNEL_TARBALL_SHA256}" > "${source_stamp}"
     fi
 
-    if [[ "${KERNEL_ARCH}" == "arm64" ]]; then
-      out="/build/out-vz-${KERNEL_PROFILE}-pci-${KERNEL_VERSION}"
-    else
-      out="/build/out-${KERNEL_ARCH}-${KERNEL_PROFILE}-${KERNEL_VERSION}"
-    fi
+    out="/build/out-${KERNEL_ARCH}-${KERNEL_VERSION}"
     rm -rf "${out}"
     mkdir -p "${out}"
 
     make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" tinyconfig
-    "${src}/scripts/config" --file "${out}/.config" \
-      -e 64BIT \
-      -e BINFMT_ELF \
-      -e TTY \
-      -e VT \
-      -e UNIX98_PTYS \
-      -e HVC_DRIVER \
-      -e VIRTIO \
-      -e VIRTIO_MENU \
-      -e VIRTIO_MMIO \
-      -e VIRTIO_CONSOLE \
-      -e VIRTIO_BALLOON \
-      -e MEMORY_BALLOON \
-      -e BALLOON_COMPACTION \
-      -e COMPACTION \
-      -e PAGE_REPORTING \
-      -e VSOCKETS \
-      -e VIRTIO_VSOCKETS \
-      -e NET \
-      -e INET \
-      -e PROC_FS \
-      -e SYSFS \
-      -e FUTEX \
-      -e EPOLL \
-      -e ADVISE_SYSCALLS \
-      -e ANON_INODES \
-      -e EVENTFD \
-      -e SIGNALFD \
-      -e TIMERFD \
-      -e PRINTK \
-      -e BUG \
-      -e DEVTMPFS \
-      -e TMPFS \
-      -e EMBEDDED \
-      -e EXPERT \
-      -e CC_OPTIMIZE_FOR_PERFORMANCE \
-      -d CC_OPTIMIZE_FOR_SIZE \
-      -d MODULES \
-      -d DEBUG_INFO \
-      -d DEBUG_KERNEL \
-      -d KALLSYMS \
-      -d IKCONFIG \
-      -d IPV6 \
-      -d WIRELESS \
-      -d WLAN \
-      -d BT \
-      -d BLOCK \
-      -d SCSI \
-      -d MD \
-      -d INPUT \
-      -d HID \
-      -d USB_SUPPORT \
-      -d CGROUPS \
-      -d NAMESPACES \
-      -d AUDIT \
-      -d SECURITY \
-      -d BPF_SYSCALL \
-      -d ZSWAP
-
-    if [[ "${KERNEL_ARCH}" == "arm64" ]]; then
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e ARM64_4K_PAGES \
-        -e VIRTIO_PCI \
-        -e VIRTIO_PCI_LEGACY \
-        -e ARM_AMBA \
-        -e RTC_CLASS \
-        -e RTC_HCTOSYS \
-        -e RTC_INTF_DEV \
-        -e RTC_INTF_PROC \
-        -e RTC_INTF_SYSFS \
-        -e RTC_DRV_PL031 \
-        -e PCI \
-        -e PCI_HOST_GENERIC \
-        -e PCI_MSI \
-        -e PCI_MSI_IRQ_DOMAIN \
-        -e GENERIC_MSI_IRQ_DOMAIN
-    else
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e X86_64 \
-        -e SMP \
-        -e X86_MPPARSE \
-        -e HYPERVISOR_GUEST \
-        -e PARAVIRT \
-        -e KVM_GUEST \
-        -e RELOCATABLE \
-        -e VIRTIO_MMIO_CMDLINE_DEVICES \
-        -d ACPI \
-        -d EFI \
-        -d PCI \
-        -d VIRTIO_PCI \
-        -d VIRTIO_PCI_LEGACY \
-        -d RTC_CLASS \
-        -d SERIAL_8250 \
-        -d SERIAL_8250_CONSOLE \
-        -d KEYBOARD_ATKBD \
-        -d MOUSE_PS2 \
-        -d SERIO_I8042
-    fi
-
-    if [[ "${KERNEL_PROFILE}" = "initrd" || "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e BLK_DEV_INITRD \
-        -e RD_GZIP \
-        -e CMDLINE_BOOL \
-        --set-str CMDLINE "rdinit=/init"
-    fi
-
-    if [[ "${ENABLE_DEVMEM}" = "1" ]]; then
-      if [[ "${KERNEL_ARCH}" == "x86_64" ]]; then
-        "${src}/scripts/config" --file "${out}/.config" \
-          -e DEVMEM \
-          -e STRICT_DEVMEM \
-          -d IO_STRICT_DEVMEM
-      else
-        "${src}/scripts/config" --file "${out}/.config" \
-          -e DEVMEM \
-          -d STRICT_DEVMEM \
-          -d IO_STRICT_DEVMEM
-      fi
-    else
-      "${src}/scripts/config" --file "${out}/.config" \
-        -d DEVMEM \
-        -d STRICT_DEVMEM \
-        -d IO_STRICT_DEVMEM
-    fi
-
-    if [[ "${KERNEL_PROFILE}" = "rootfs" || "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e BLOCK \
-        -e BLK_DEV \
-        -e VIRTIO_BLK \
-        -e EXT4_FS \
-        -e EXT4_FS_SECURITY \
-        -e EXT4_USE_FOR_EXT2 \
-        -e JBD2 \
-        -e CRC16 \
-        -e CRYPTO \
-        -e CRYPTO_CRC32C \
-        -e NETDEVICES \
-        -e VIRTIO_NET \
-        -e PACKET \
-        -e UNIX \
-        -e DEVTMPFS_MOUNT
-    fi
-
-    if [[ "${KERNEL_PROFILE}" = "sporevm-run" ]]; then
-      "${src}/scripts/config" --file "${out}/.config" \
-        -e MULTIUSER \
-        -e SYSVIPC \
-        -e POSIX_TIMERS \
-        -e BINFMT_SCRIPT \
-        -e HW_RANDOM \
-        -e HW_RANDOM_VIRTIO \
-        -e FILE_LOCKING \
-        -e SHMEM \
-        -e TMPFS \
-        -e TMPFS_XATTR \
-        -e FSNOTIFY \
-        -e INOTIFY_USER \
-        -e FHANDLE \
-        -e POSIX_MQUEUE \
-        -e KEYS \
-        -e NAMESPACES \
-        -e UTS_NS \
-        -e IPC_NS \
-        -e PID_NS \
-        -e NET_NS \
-        -e USER_NS \
-        -e CGROUPS \
-        -e BPF_SYSCALL \
-        -e CGROUP_BPF \
-        -e CGROUP_SCHED \
-        -e FAIR_GROUP_SCHED \
-        -e CFS_BANDWIDTH \
-        -e CGROUP_CPUACCT \
-        -e CGROUP_DEVICE \
-        -e CGROUP_FREEZER \
-        -e CGROUP_PIDS \
-        -e CPUSETS \
-        -e PROC_PID_CPUSET \
-        -e MEMCG \
-        -e PSI \
-        -e SECCOMP \
-        -e SECCOMP_FILTER \
-        -e OVERLAY_FS \
-        -e TUN \
-        -e VETH \
-        -e MACVLAN \
-        -e IPVLAN \
-        -e VXLAN \
-        -e BRIDGE \
-        -e BRIDGE_NETFILTER \
-        -e NETFILTER \
-        -e NETFILTER_ADVANCED \
-        -e NF_CONNTRACK \
-        -e NF_NAT \
-        -e NETFILTER_XTABLES \
-        -e NETFILTER_XT_TARGET_CHECKSUM \
-        -e NETFILTER_XT_TARGET_MASQUERADE \
-        -e NETFILTER_XT_TARGET_REDIRECT \
-        -e NETFILTER_XT_MATCH_ADDRTYPE \
-        -e NETFILTER_XT_MATCH_CONNTRACK \
-        -e NF_TABLES \
-        -e NF_TABLES_IPV4 \
-        -e NFT_COMPAT \
-        -e NFT_CT \
-        -e NFT_MASQ \
-        -e NFT_NAT \
-        -e NFT_REJECT \
-        -e NFT_REJECT_IPV4 \
-        -e IP_NF_IPTABLES \
-        -e IP_NF_FILTER \
-        -e IP_NF_TARGET_REJECT \
-        -e IP_NF_NAT \
-        -e IP_NF_TARGET_MASQUERADE \
-        -e IP_NF_TARGET_REDIRECT \
-        -e IP_NF_MANGLE \
-        -e IP_NF_RAW \
-        -e MEMORY_HOTPLUG \
-        -e MEMORY_HOTPLUG_DEFAULT_ONLINE \
-        -e MEMORY_HOTREMOVE \
-        -e MIGRATION \
-        -e CONTIG_ALLOC \
-        -e EXCLUSIVE_SYSTEM_RAM \
-        -e SPARSEMEM_VMEMMAP \
-        -e VIRTIO_MEM
-    fi
-
+    "${src}/scripts/kconfig/merge_config.sh" -m -O "${out}" "${out}/.config" \
+      /config/common.config "/config/${KERNEL_ARCH}.config"
     make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" olddefconfig
     make -C "${src}" O="${out}" ARCH="${KERNEL_MAKE_ARCH}" CROSS_COMPILE="${KERNEL_CROSS_COMPILE}" -j"$(nproc)" "${KERNEL_BUILD_TARGET}"
 
