@@ -44,12 +44,15 @@ require_config_fragments() {
   local fragment line symbol
 
   for fragment in "${CONFIG_FRAGMENTS[@]}"; do
-    while IFS= read -r line; do
+    while IFS= read -r line || [[ -n "${line}" ]]; do
       if [[ "${line}" =~ ^#\ (CONFIG_[A-Za-z0-9_]+)\ is\ not\ set$ ]]; then
         symbol="${BASH_REMATCH[1]}"
         if grep -q "^${symbol}=" "${config_path}"; then
           die "${config_path} sets ${symbol}, but ${fragment} disables it"
         fi
+      elif [[ "${line}" =~ ^#.CONFIG_ ]]; then
+        # kconfig also honours looser disable lines, such as trailing text.
+        die "malformed disable line in ${fragment}: ${line}"
       elif [[ "${line}" =~ ^CONFIG_[A-Za-z0-9_]+= ]]; then
         grep -qxF "${line}" "${config_path}" || die "${config_path} is missing ${line} from ${fragment}"
       elif [[ -n "${line}" && "${line}" != \#* ]]; then
