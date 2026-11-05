@@ -21,6 +21,10 @@ x86_64 enables it with `CONFIG_STRICT_DEVMEM=y` and
 `CONFIG_IO_STRICT_DEVMEM=n` so the guest can map the reserved SporeVM board
 MMIO page without exposing ordinary system RAM.
 
+The kernel config is `tinyconfig` plus the fragments in `config/`:
+`common.config` and one file per architecture. The build fails unless the final
+`.config` keeps every value the fragments set.
+
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
 `13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82`.
