@@ -5,25 +5,22 @@ ARG TARGETARCH
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        bc=1.07.1-3build1 \
-        binutils=2.38-4ubuntu2.12 \
-        bison=2:3.8.2+dfsg-1build1 \
-        build-essential=12.9ubuntu3 \
-        ca-certificates=20260816ubuntu0.22.04.1 \
-        curl=7.81.0-1ubuntu1.30 \
-        flex=2.6.4-8build2 \
-        g++=4:11.2.0-1ubuntu1 \
-        g++-11=11.4.0-1ubuntu1~22.04.3 \
-        gcc=4:11.2.0-1ubuntu1 \
-        gcc-11=11.4.0-1ubuntu1~22.04.3 \
-        libelf-dev=0.186-1ubuntu0.1 \
-        libssl-dev=3.0.2-0ubuntu1.30 \
-        make=4.3-4.1build1 \
-        xz-utils=5.2.5-2ubuntu1.2 \
+        bc \
+        binutils \
+        bison \
+        build-essential \
+        ca-certificates \
+        curl \
+        flex \
+        g++ \
+        gcc \
+        libelf-dev \
+        libssl-dev \
+        make \
+        xz-utils \
     && if [ "${TARGETARCH}" = "amd64" ]; then \
         apt-get install -y --no-install-recommends \
-          binutils-aarch64-linux-gnu=2.38-4ubuntu2.12 \
-          gcc-aarch64-linux-gnu=4:11.2.0-1ubuntu1 \
-          gcc-11-aarch64-linux-gnu=11.4.0-1ubuntu1~22.04.3cross1; \
+          binutils-aarch64-linux-gnu \
+          gcc-aarch64-linux-gnu; \
       fi \
     && rm -rf /var/lib/apt/lists/*
