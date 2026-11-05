@@ -13,43 +13,18 @@ require_command() {
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-KERNEL_RELEASE_DIR="${REPO_ROOT}/dist/kernels"
 KERNEL_ARCH="${SPOREVM_KERNEL_ARCH:-arm64}"
-APPROVED_X86_64_DIR="${REPO_ROOT}/approved/x86_64/6.1.191"
-
-case "${KERNEL_ARCH}" in
-  arm64)
-    DEFAULT_BUILD_DIR="${REPO_ROOT}/.kernel-cache/sporevm"
-    ;;
-  x86_64)
-    ;;
-  *)
-    die "unsupported SPOREVM_KERNEL_ARCH: ${KERNEL_ARCH}"
-    ;;
-esac
-
-require_command python3
-
-cd "${REPO_ROOT}"
-rm -rf "${KERNEL_RELEASE_DIR}"
-mkdir -p "${KERNEL_RELEASE_DIR}"
-
-if [[ "${KERNEL_ARCH}" == "x86_64" ]]; then
-  echo "--- :package: Stage approved SporeVM x86_64 kernel release assets"
-  cp \
-    "${APPROVED_X86_64_DIR}/sporevm-x86_64-linux-6.1.191-bzImage" \
-    "${APPROVED_X86_64_DIR}/sporevm-x86_64-linux-6.1.191-bzImage.config" \
-    "${APPROVED_X86_64_DIR}/sporevm-x86_64-linux-6.1.191-bzImage.sha256" \
-    "${APPROVED_X86_64_DIR}/sporevm-x86_64-linux-6.1.191.manifest.json" \
-    "${KERNEL_RELEASE_DIR}/"
-  "${SCRIPT_DIR}/verify-approved-x86-kernel-assets.sh" "${KERNEL_RELEASE_DIR}"
-  exit 0
-fi
+OUTPUT_DIR="${1:-${REPO_ROOT}/dist/kernels}"
 
 require_command docker
 require_command git
+require_command python3
 
-export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${DEFAULT_BUILD_DIR}}"
+cd "${REPO_ROOT}"
+rm -rf "${OUTPUT_DIR}"
+mkdir -p "${OUTPUT_DIR}"
 
-echo "--- :penguin: Build SporeVM ${KERNEL_ARCH} kernel release assets"
-"${SCRIPT_DIR}/build-release-asset.sh" "${KERNEL_RELEASE_DIR}"
+export SPOREVM_KERNEL_BUILD_DIR="${SPOREVM_KERNEL_BUILD_DIR:-${REPO_ROOT}/.kernel-cache/${KERNEL_ARCH}}"
+
+echo "--- :penguin: Build SporeVM ${KERNEL_ARCH} kernel"
+"${SCRIPT_DIR}/build-release-asset.sh" "${OUTPUT_DIR}"

@@ -76,6 +76,7 @@ Useful environment variables:
 
 ## CI
 
-Buildkite builds ARM64 and stages the approved x86_64 artifact set on hosted
-agents. Tagged builds then publish both architectures and `dist/kernels.tar.gz`
-to the matching GitHub Release.
+Buildkite builds both architectures on hosted agents. The ARM64 build and the
+approved x86_64 artifact set go to `dist/kernels`; the x86_64 build goes to
+`dist/x86_64-build` and is not published. Tagged builds then publish
+`dist/kernels` and `dist/kernels.tar.gz` to the matching GitHub Release.
