@@ -98,14 +98,21 @@ build_asset() {
   KERNEL_SHA256="${kernel_sha256}" \
   KERNEL_TARBALL_SHA256="${KERNEL_TARBALL_SHA256}" \
   KERNEL_VERSION="${KERNEL_VERSION}" \
+  PATCH_DIR="${REPO_ROOT}/patches" \
   RELEASE_TAG="${RELEASE_TAG}" \
   SOURCE_COMMIT="${SOURCE_COMMIT}" \
   SOURCE_REPOSITORY="${SOURCE_REPOSITORY}" \
   python3 - <<'PY' > "${manifest_path}"
+import hashlib
 import json
 import os
+import pathlib
 
 image_name = os.environ["IMAGE_NAME"]
+patches = [
+    {"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    for path in sorted(pathlib.Path(os.environ["PATCH_DIR"]).glob("*.patch"))
+]
 
 manifest = {
     "id": os.environ["ASSET_BASE"],
@@ -131,6 +138,7 @@ manifest = {
         "docker_image": os.environ["DOCKER_IMAGE"],
         "docker_platform": os.environ["DOCKER_PLATFORM"],
         "kernel_tarball_sha256": os.environ["KERNEL_TARBALL_SHA256"],
+        "patches": patches,
     },
 }
 print(json.dumps(manifest, indent=2, sort_keys=True))

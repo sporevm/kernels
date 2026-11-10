@@ -73,6 +73,7 @@ docker run --rm \
   -e "CONFIG_BASENAME=${CONFIG_BASENAME}" \
   -v "${BUILD_MOUNT}" \
   -v "${REPO_ROOT}/config:/config:ro" \
+  -v "${REPO_ROOT}/patches:/patches:ro" \
   -v "${OUTPUT_DIR}:/out" \
   "${DOCKER_IMAGE}" \
   bash -lc '
@@ -94,7 +95,17 @@ docker run --rm \
       echo "${KERNEL_TARBALL_SHA256}  ${tarball}" | sha256sum -c -
     }
 
-    if [[ ! -d "${src}" || ! -f "${source_stamp}" || "$(<"${source_stamp}")" != "${KERNEL_TARBALL_SHA256}" ]]; then
+    # Every patch applies, in name order, to both architectures. The cached
+    # source tree is reused only for the same tarball and patch contents.
+    shopt -s nullglob
+    patches=(/patches/*.patch)
+    shopt -u nullglob
+    source_id="$({
+      printf "%s\n" "${KERNEL_TARBALL_SHA256}"
+      if (( ${#patches[@]} > 0 )); then sha256sum "${patches[@]}"; fi
+    } | sha256sum | cut -d " " -f 1)"
+
+    if [[ ! -d "${src}" || ! -f "${source_stamp}" || "$(<"${source_stamp}")" != "${source_id}" ]]; then
       rm -rf "${src}" "${source_stamp}"
       if [[ ! -f "${tarball}" ]]; then
         download_kernel_tarball
@@ -105,7 +116,13 @@ docker run --rm \
         verify_kernel_tarball
       fi
       tar -C /build -xf "${tarball}"
-      printf "%s\n" "${KERNEL_TARBALL_SHA256}" > "${source_stamp}"
+      for patch_file in "${patches[@]}"; do
+        echo "applying ${patch_file##*/}"
+        # No fuzz: after a Linux update, a patch whose context moved fails
+        # the build instead of applying somewhere else.
+        patch -d "${src}" -p1 --batch --quiet --fuzz=0 --no-backup-if-mismatch < "${patch_file}"
+      done
+      printf "%s\n" "${source_id}" > "${source_stamp}"
     fi
 
     out="/build/out-${KERNEL_ARCH}-${KERNEL_VERSION}"

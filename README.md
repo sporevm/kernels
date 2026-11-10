@@ -25,6 +25,17 @@ The kernel config is `tinyconfig` plus the fragments in `config/`:
 `common.config` and one file per architecture. The build fails unless the final
 `.config` keeps every value the fragments set.
 
+Each file in `patches/` applies with `patch -p1`, in name order, to the
+upstream source for both architectures. Release manifests list the applied
+patches and their SHA-256 under `builder.patches`.
+
+- `0001-ext4-reuse-free-inodes-without-a-journal.patch`: without a journal,
+  upstream ext4 checks every inode deleted in the last 60 to 360 seconds
+  again on each new inode, so creating files after deleting others is
+  quadratic. SporeVM root filesystems have no journal and are never booted
+  again after an unclean shutdown, so the delay protects nothing there. The
+  patch reuses free inodes as journaled ext4 does.
+
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
 `13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82`.

@@ -1,0 +1,49 @@
+Subject: [PATCH] ext4: reuse free inodes immediately without a journal
+
+Without a journal, find_inode_bit() starts at bit 0 of the group on every
+allocation and calls recently_deleted() for each free inode it meets. It
+skips inodes deleted in the last 60 seconds, or 360 seconds while their
+inode-table block is dirty, and prefers the next free one. After a workload
+deletes N files, each of the next creates in that group repeats those N
+buffer-cache lookups, so create-after-delete costs O(creates * deletes).
+In a SporeVM guest, creating 2,500 small files after earlier batches were
+deleted took 330 to 1,220 ms instead of 14 ms.
+
+The delay protects a filesystem that boots again after an unclean
+shutdown and is repaired by e2fsck: a stale directory entry could then
+name a reused inode. SporeVM never boots a journal-less disk that way.
+Named VMs are live-only, checkpoints capture memory and disk together,
+disk publication freezes the filesystem first, and unclean build-cache
+disks are recreated. Allocate exactly as journaled ext4 does.
+
+---
+ fs/ext4/ialloc.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/fs/ext4/ialloc.c b/fs/ext4/ialloc.c
+--- a/fs/ext4/ialloc.c
++++ b/fs/ext4/ialloc.c
+@@ -673,7 +673,8 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
+ #define RECENTCY_MIN	60
+ #define RECENTCY_DIRTY	300
+ 
+-static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
++static int __maybe_unused recently_deleted(struct super_block *sb,
++					   ext4_group_t group, int ino)
+ {
+ 	struct ext4_group_desc	*gdp;
+ 	struct ext4_inode	*raw_inode;
+@@ -725,7 +726,12 @@ static int recently_deleted(struct super_block *sb, ext4_group_t group, int ino)
+ static int find_inode_bit(struct super_block *sb, ext4_group_t group,
+ 			  struct buffer_head *bitmap, unsigned long *ino)
+ {
+-	bool check_recently_deleted = EXT4_SB(sb)->s_journal == NULL;
++	/*
++	 * SporeVM: skipping recently deleted inodes rescans all of them on
++	 * every allocation, which makes create-after-delete quadratic. Reuse
++	 * free inodes as journaled ext4 does.
++	 */
++	bool check_recently_deleted = false;
+ 	unsigned long recently_deleted_ino = EXT4_INODES_PER_GROUP(sb);
+ 
+ next:
