@@ -46,7 +46,7 @@ most of the CPU time in metadata-heavy guest workloads.
 
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
-`13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82`.
+`fdb9746e3fbf060097696f7b92c5f33a991d9a80f02aacec0ca389f3705d5373`.
 The exact approved x86_64 image, config, checksum, and manifest are retained in
 `approved/x86_64/6.1.191/`. CI stages those files verbatim and verifies all four
 file hashes before upload and again before release publication. The ARM64
