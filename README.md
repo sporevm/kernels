@@ -40,6 +40,9 @@ patches and their SHA-256 under `builder.patches`.
   pages are evicted, by memory pressure or `drop_caches`, the next block
   allocation from that group dereferences a NULL folio and oopses. Drop this
   patch when moving to a 6.1.y release that includes it; 6.1.192 does not.
+  CI boots each arm64 build on a KVM agent and writes to ext4 after
+  `drop_caches` (`scripts/ci-reclaim-smoke.sh`), so a kernel that oopses there
+  fails before release.
 
 Both kernels use SLUB. `tinyconfig` selects SLOB, whose free-list scan took
 most of the CPU time in metadata-heavy guest workloads.
