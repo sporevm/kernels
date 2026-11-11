@@ -35,10 +35,18 @@ patches and their SHA-256 under `builder.patches`.
   quadratic. SporeVM root filesystems have no journal and are never booted
   again after an unclean shutdown, so the delay protects nothing there. The
   patch reuses free inodes as journaled ext4 does.
+- `0002-ext4-fix-NULL-folio-dereference-in-mballoc.patch`: the upstream 6.1.y
+  fix for a regression first released in 6.1.191. Once ext4's buddy cache
+  pages are evicted, by memory pressure or `drop_caches`, the next block
+  allocation from that group dereferences a NULL folio and oopses. Drop this
+  patch when moving to a 6.1.y release that includes it; 6.1.192 does not.
+
+Both kernels use SLUB. `tinyconfig` selects SLOB, whose free-list scan took
+most of the CPU time in metadata-heavy guest workloads.
 
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
-`13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82`.
+`fdb9746e3fbf060097696f7b92c5f33a991d9a80f02aacec0ca389f3705d5373`.
 The exact approved x86_64 image, config, checksum, and manifest are retained in
 `approved/x86_64/6.1.191/`. CI stages those files verbatim and verifies all four
 file hashes before upload and again before release publication. The ARM64

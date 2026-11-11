@@ -21,10 +21,10 @@ import sys
 
 asset_dir = pathlib.Path(os.environ["ASSET_DIR"])
 expected_hashes = {
-    "sporevm-x86_64-linux-6.1.191-bzImage": "13ca22ff42b795c33365c89fad3e7d5bbf0a972cdaedc7f70f2f78270ee7bb82",
-    "sporevm-x86_64-linux-6.1.191-bzImage.config": "a2a34bd5044125f9fb21e2f2079fe68ab2ad5e01758b4d4f37be450c88489a76",
-    "sporevm-x86_64-linux-6.1.191-bzImage.sha256": "7ac2bb6df9c45897c1c6ff1d74e41e4e7c391e43f9dea751ff25e1025e8b5ac9",
-    "sporevm-x86_64-linux-6.1.191.manifest.json": "5fd5ad9848ba109ece6691de28d6ffd1277a767511d30ef7807948b1e8bfc0be",
+    "sporevm-x86_64-linux-6.1.191-bzImage": "fdb9746e3fbf060097696f7b92c5f33a991d9a80f02aacec0ca389f3705d5373",
+    "sporevm-x86_64-linux-6.1.191-bzImage.config": "ec496d32864129cadce7f0b36153d72a4d19a973acae80b17efcec0776cca002",
+    "sporevm-x86_64-linux-6.1.191-bzImage.sha256": "1a570fd2c39d9fb510ad967207cbfbef600c7fc3e92b7568a587fd0d91528ca9",
+    "sporevm-x86_64-linux-6.1.191.manifest.json": "9e0051376dffe47f9481d0cbffae79967789b0677f567dd8d4bfebb1b1356d49",
 }
 
 for name, expected in expected_hashes.items():
