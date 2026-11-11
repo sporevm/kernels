@@ -23,6 +23,17 @@ steps:
     agents:
       queue: hosted
 
+  - label: ":fire: Reclaim smoke (arm64 KVM)"
+    key: reclaim-smoke-arm64
+    depends_on: build-sporevm
+    command: "scripts/ci-reclaim-smoke.sh"
+    timeout_in_minutes: 10
+    env:
+      # Docker Hub rate-limits anonymous pulls per shared egress IP.
+      SPOREVM_DOCKER_HUB_MIRROR: "mirror.gcr.io"
+    agents:
+      queue: sporevm-linux-arm64
+
   - label: ":package: Stage approved SporeVM x86_64 kernel"
     key: stage-approved-x86-64
     command: "scripts/ci-stage-approved-x86-kernel.sh"
