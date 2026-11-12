@@ -47,6 +47,9 @@ patches and their SHA-256 under `builder.patches`.
 Both kernels use SLUB. `tinyconfig` selects SLOB, whose free-list scan took
 most of the CPU time in metadata-heavy guest workloads.
 
+ARM64 enables high-resolution timers so sub-tick deadlines do not depend on
+the periodic 250 Hz tick. The approved x86_64 kernel is unchanged.
+
 Release publishing fails closed unless the x86_64 bzImage, checksum, and
 manifest all contain the approved SHA-256
 `fdb9746e3fbf060097696f7b92c5f33a991d9a80f02aacec0ca389f3705d5373`.
